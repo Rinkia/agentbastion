@@ -1,8 +1,8 @@
 import pytest
 
-from agentguard import Firewall, guard, BlockedError
-from agentguard.events import EventLog
-from agentguard.tools import ToolPolicy
+from agentaegis import Firewall, guard, BlockedError
+from agentaegis.events import EventLog
+from agentaegis.tools import ToolPolicy
 
 
 def _fw(tmp_path):

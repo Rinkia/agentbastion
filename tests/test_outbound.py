@@ -1,4 +1,4 @@
-from agentguard.outbound import PiiRedactor, _luhn_ok
+from agentaegis.outbound import PiiRedactor, _luhn_ok
 
 
 def test_redacts_email_and_ssn():

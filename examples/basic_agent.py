@@ -1,4 +1,4 @@
-"""A support-bot agent built on the raw Anthropic SDK, wrapped by agentguard.
+"""A support-bot agent built on the raw Anthropic SDK, wrapped by agentaegis.
 
 Shows all three guards:
   - inbound  : @guard() blocks prompt injection before the model sees it
@@ -20,8 +20,8 @@ from pathlib import Path
 
 import anthropic
 
-from agentguard import Firewall, guard, load_policy
-from agentguard.tools import ToolBlocked
+from agentaegis import Firewall, guard, load_policy
+from agentaegis.tools import ToolBlocked
 
 MODEL = "claude-opus-5"
 
@@ -101,5 +101,5 @@ if __name__ == "__main__":
     ]:
         print(f"\n>>> {q}\n{support_bot(q)}")
     print("\n--- firewall log ---")
-    from agentguard import dashboard
-    print(dashboard("agentguard.jsonl"))
+    from agentaegis import dashboard
+    print(dashboard("agentaegis.jsonl"))
