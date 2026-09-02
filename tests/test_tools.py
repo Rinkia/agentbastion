@@ -1,6 +1,6 @@
 import pytest
 
-from agentaegis.tools import ToolPolicy, ToolBlocked
+from agentbastion.tools import ToolPolicy, ToolBlocked
 
 
 def test_allow_list_permits_listed_tool():

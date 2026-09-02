@@ -1,4 +1,4 @@
-from agentaegis.inbound import InboundGuard
+from agentbastion.inbound import InboundGuard
 
 
 def test_blocks_ignore_previous_instructions():

@@ -34,7 +34,7 @@ class Event:
 class EventLog:
     """Append-only JSONL sink. Pass path=None to disable logging (no-op)."""
 
-    def __init__(self, path: Optional[str | Path] = "agentaegis.jsonl") -> None:
+    def __init__(self, path: Optional[str | Path] = "agentbastion.jsonl") -> None:
         self._path = Path(path) if path is not None else None
 
     def log(self, event: Event) -> None:
@@ -44,7 +44,7 @@ class EventLog:
             f.write(event.to_json() + "\n")
 
 
-def dashboard(path: str | Path = "agentaegis.jsonl") -> str:
+def dashboard(path: str | Path = "agentbastion.jsonl") -> str:
     """Read the log and return a printable summary."""
     p = Path(path)
     if not p.exists():
@@ -66,7 +66,7 @@ def dashboard(path: str | Path = "agentaegis.jsonl") -> str:
             blocks[f"{e.get('stage')}: {e.get('detail')}"] += 1
 
     lines = [
-        f"agentaegis - {total} events from {p}",
+        f"agentbastion - {total} events from {p}",
         "-" * 48,
         "By stage:    " + ", ".join(f"{k}={v}" for k, v in stages.most_common()),
         "By decision: " + ", ".join(f"{k}={v}" for k, v in decisions.most_common()),
@@ -81,4 +81,4 @@ def dashboard(path: str | Path = "agentaegis.jsonl") -> str:
 if __name__ == "__main__":
     import sys
 
-    print(dashboard(sys.argv[1] if len(sys.argv) > 1 else "agentaegis.jsonl"))
+    print(dashboard(sys.argv[1] if len(sys.argv) > 1 else "agentbastion.jsonl"))

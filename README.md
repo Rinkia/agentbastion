@@ -1,4 +1,4 @@
-# agentaegis
+# agentbastion
 
 A checkpoint between the AI agent your business ships and the world. Businesses
 now deploy chatbots, copilots, and agents wired to their data and tools — and
@@ -24,14 +24,14 @@ dashboards and alerts is the paid tier later.
 ## Install
 
 ```bash
-pip install agentaegis            # core guards (offline, no model needed)
-pip install "agentaegis[judge]"   # + Anthropic LLM judge for subtle injection
+pip install agentbastion            # core guards (offline, no model needed)
+pip install "agentbastion[judge]"   # + Anthropic LLM judge for subtle injection
 ```
 
 ## Quick start
 
 ```python
-from agentaegis import Firewall, guard, load_policy
+from agentbastion import Firewall, guard, load_policy
 
 firewall = Firewall()                                  # heuristics + PII redaction
 firewall.tool_policy = load_policy("allowlist.yaml")   # gate tool calls
@@ -68,10 +68,10 @@ low-risk ones. It **fails open**: a judge outage never takes your agent down.
 
 ### Audit log
 
-Every decision is appended to `agentaegis.jsonl`. Summarize it:
+Every decision is appended to `agentbastion.jsonl`. Summarize it:
 
 ```bash
-python -m agentaegis.events agentaegis.jsonl
+python -m agentbastion.events agentbastion.jsonl
 ```
 
 ## What this is not
@@ -89,7 +89,7 @@ Known v0 ceilings (all have an upgrade path in the code):
 ## Tests
 
 ```bash
-pip install "agentaegis[dev]"
+pip install "agentbastion[dev]"
 pytest -q
 ```
 
