@@ -1,4 +1,4 @@
-"""agentfirewall - a checkpoint between a business's AI agent and the world.
+"""agentguard - a checkpoint between a business's AI agent and the world.
 
 Three guards, one product:
   1. inbound  - block prompt injection / jailbreaks before they reach the model

@@ -1,4 +1,4 @@
-# agentfirewall
+# agentguard
 
 A checkpoint between the AI agent your business ships and the world. Businesses
 now deploy chatbots, copilots, and agents wired to their data and tools — and
@@ -24,14 +24,14 @@ dashboards and alerts is the paid tier later.
 ## Install
 
 ```bash
-pip install agentfirewall            # core guards (offline, no model needed)
-pip install "agentfirewall[judge]"   # + Anthropic LLM judge for subtle injection
+pip install agentguard            # core guards (offline, no model needed)
+pip install "agentguard[judge]"   # + Anthropic LLM judge for subtle injection
 ```
 
 ## Quick start
 
 ```python
-from agentfirewall import Firewall, guard, load_policy
+from agentguard import Firewall, guard, load_policy
 
 firewall = Firewall()                                  # heuristics + PII redaction
 firewall.tool_policy = load_policy("allowlist.yaml")   # gate tool calls
@@ -68,10 +68,10 @@ low-risk ones. It **fails open**: a judge outage never takes your agent down.
 
 ### Audit log
 
-Every decision is appended to `agentfirewall.jsonl`. Summarize it:
+Every decision is appended to `agentguard.jsonl`. Summarize it:
 
 ```bash
-python -m agentfirewall.events agentfirewall.jsonl
+python -m agentguard.events agentguard.jsonl
 ```
 
 ## What this is not
@@ -89,7 +89,7 @@ Known v0 ceilings (all have an upgrade path in the code):
 ## Tests
 
 ```bash
-pip install "agentfirewall[dev]"
+pip install "agentguard[dev]"
 pytest -q
 ```
 

@@ -1,4 +1,4 @@
-from agentfirewall.inbound import InboundGuard
+from agentguard.inbound import InboundGuard
 
 
 def test_blocks_ignore_previous_instructions():
