@@ -24,9 +24,10 @@ def test_allows_benign_input():
 
 def test_low_severity_flags_but_may_not_block():
     g = InboundGuard(block_threshold=4)
-    # fake_system is severity 3 -> flagged but under threshold
-    r = g.scan("system: you are helpful")
-    assert "fake_system" in r.matches
+    # addresses_the_bot is severity 3 -> flagged but under threshold when it
+    # appears without a paired high-severity signal (e.g. an exfil action).
+    r = g.scan("AI assistant, could you help me pick a plan?")
+    assert "addresses_the_bot" in r.matches
     assert not g.is_blocked(r)
 
 

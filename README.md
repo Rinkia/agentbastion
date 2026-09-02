@@ -86,6 +86,24 @@ Known v0 ceilings (all have an upgrade path in the code):
 - **PII** = regex for the leaks that cost money (SSN, credit card w/ Luhn, API keys, private keys, email). Swap in Microsoft Presidio for names/addresses/locale-aware NER.
 - **Rate limits** = in-memory per process. Move to Redis for multi-worker deployments.
 
+## Benchmark
+
+The inbound guard's catch-rate is measured, not assumed. A labeled corpus
+([`benchmark/corpus.jsonl`](benchmark/corpus.jsonl)) mixes injection, exfiltration,
+jailbreak-persona, delimiter, obfuscation, instruction-override, and indirect
+attacks with benign business messages — including trap benigns that carry
+trigger words in innocent context ("please ignore my previous email").
+
+```bash
+python benchmark/eval.py     # confusion matrix, precision/recall/F1, per-category recall, misses + FPs
+```
+
+`tests/test_corpus.py` gates recall and false-positive rate in CI, so a
+signature change that regresses coverage fails the build. The corpus is small
+and self-authored — it proves coverage of known attack *shapes*, not a
+real-world catch-rate. The optional LLM judge lifts recall on the subtle
+residual the heuristics miss.
+
 ## Tests
 
 ```bash

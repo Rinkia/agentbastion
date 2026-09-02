@@ -19,16 +19,41 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 # (name, pattern, severity 1-5). Severity >= block_threshold => hard block.
+# Patterns are deliberately narrow: each targets an attack shape without firing
+# on benign business text that merely contains a trigger word ("please ignore my
+# previous email", "override the default shipping option"). The corpus in
+# benchmark/corpus.jsonl - including fp_trap_* rows - guards against regressions.
 _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
+    # --- direct instruction override ---
     ("ignore_previous", re.compile(r"\bignore\s+(?:all\s+|the\s+)?(?:previous|prior|above)\b.{0,20}\binstruction", re.I), 5),
+    ("ignore_your_rules", re.compile(r"\bignore\b.{0,20}\b(?:your\s+)?(?:guidelines?|rules?|safety|instructions?|restrictions?|filters?|polic(?:y|ies))\b", re.I), 4),
     ("disregard_above", re.compile(r"\bdisregard\s+(?:everything\s+|the\s+)?above\b", re.I), 4),
     ("forget_instructions", re.compile(r"\bforget\s+(?:all\s+|your\s+)?(?:previous\s+)?instruction", re.I), 5),
-    ("reveal_system_prompt", re.compile(r"\b(?:reveal|show|print|repeat|output|tell me)\b.{0,30}\b(?:system\s+prompt|your\s+instructions|the\s+words\s+above|initial\s+prompt)", re.I), 5),
-    ("new_instructions", re.compile(r"\bnew\s+instructions?\s*:", re.I), 4),
-    ("fake_system", re.compile(r"^\s*(?:system|assistant)\s*:", re.I | re.M), 3),
+    ("new_instructions", re.compile(r"\bnew\s+(?:instructions?|directives?|rules?|orders?|task)\b\s*:?", re.I), 4),
+    ("supersede_prior", re.compile(r"\bsupersede(?:s|d)?\b.{0,20}\b(?:all\s+)?(?:prior|previous|your|earlier)\b", re.I), 4),
+    ("from_now_on_comply", re.compile(r"\bfrom now on\b.{0,40}\b(?:you (?:must|will|can)|comply|answer (?:any|every)|no (?:rules|limits|restrictions))\b", re.I), 4),
+    # --- system-update / override framing ---
+    ("override_controls", re.compile(r"\boverride\b.{0,25}\b(?:safety|protocols?|instructions?|rules?|guidelines?|security|restrictions?|filters?|controls?)\b", re.I), 4),
+    ("system_update_framing", re.compile(r"\b(?:system\s+(?:update|override|message|notice)|rules?\s+have\s+changed|allow\s+all\s+content|safety\s+(?:protocols?\s+)?disabled)\b", re.I), 4),
+    # --- system-prompt exfiltration ---
+    ("reveal_system_prompt", re.compile(
+        r"\b(?:reveal|show|print|repeat|output|tell me|give me|list|display|dump|expose|disclose|read back|what (?:were|are|was))\b.{0,45}"
+        r"\b(?:system\s+prompt|initial\s+prompt|initial\s+instructions|original\s+instructions|exact\s+instructions|"
+        r"your\s+(?:system\s+)?(?:prompt|instructions|rules|guidelines|directive)|the\s+words\s+above|written\s+above|"
+        r"hidden\s+(?:prompt|instructions|system)|context\s+window|system\s+message)\b", re.I), 5),
+    # --- jailbreak personas ---
     ("dan_jailbreak", re.compile(r"\b(?:do anything now|DAN mode|developer mode|jailbreak)\b", re.I), 4),
-    ("roleplay_override", re.compile(r"\byou are (?:now|no longer)\b.{0,40}\b(?:unrestricted|no rules|no limits|free)\b", re.I), 4),
+    ("no_restrictions", re.compile(r"\b(?:no|without|free from|bypass(?:ing)?)\s+(?:any\s+)?(?:content\s+)?(?:filters?|limits?|restrictions?|rules?|guidelines?|safety|content\s+polic(?:y|ies)|polic(?:y|ies))\b", re.I), 4),
+    ("roleplay_override", re.compile(r"\b(?:you are (?:now|no longer)|pretend (?:you are|to be)|respond as if|act as if)\b.{0,50}\b(?:unrestricted|uncensored|no rules|no limits|no filters?|no content polic|freely|anything)\b", re.I), 4),
     ("act_as_unfiltered", re.compile(r"\bact as\b.{0,40}\b(?:unfiltered|uncensored|without restrictions)\b", re.I), 4),
+    # --- delimiter / role injection ---
+    ("fake_system", re.compile(r"^\s*(?:system|assistant)\s*:", re.I | re.M), 4),
+    ("delimiter_marker", re.compile(r"(?:#{2,}\s*end of (?:user )?input|<\|im_(?:start|end)\|>|<<SYS>>|\[/?INST\])", re.I), 4),
+    # --- obfuscation ---
+    ("obfuscation_decode", re.compile(r"\b(?:decode|base64|rot-?13|from\s+hex|reverse the (?:string|text))\b.{0,60}\b(?:follow|execute|run|do (?:exactly )?what|obey|comply)\b", re.I), 4),
+    # --- indirect / data-borne injection ---
+    ("addresses_the_bot", re.compile(r"\b(?:ai assistant|to the (?:bot|assistant|ai|model)|note to the bot|assistant reading this|when you (?:process|read|see) this)\b", re.I), 3),
+    ("exfil_action", re.compile(r"\b(?:email|send|forward|exfiltrate|leak|upload|post|transmit|reveal|expose|disclose|dump)\b.{0,45}\b(?:customer\s+(?:list|data|records)|order\s+data|credentials?|api\s+keys?|passwords?|database|internal\s+config|externally|to\s+\S+@)\b", re.I), 4),
 ]
 
 
