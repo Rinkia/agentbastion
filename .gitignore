@@ -6,6 +6,6 @@ __pycache__/
 venv/
 build/
 dist/
-agentfirewall.jsonl
-*.jsonl
+# runtime audit log (default filename); keep benchmark/corpus.jsonl tracked
+agentbastion.jsonl
 .env
