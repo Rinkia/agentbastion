@@ -1,0 +1,14 @@
+# Tool policy for the support-bot example.
+# Decision order: deny -> allow -> default -> rate_limit.
+default: deny
+
+allow:
+  - get_order_status
+  - search_faq
+
+deny:
+  - delete_order
+  - issue_refund      # money movement stays human-approved
+
+rate_limits:
+  get_order_status: 5
