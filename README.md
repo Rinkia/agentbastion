@@ -119,6 +119,16 @@ python benchmark/eval_public.py --split train
 This is off the CI gate on purpose — it fetches data over the network and can
 change upstream. Use it to track true catch-rate as you add signatures.
 
+**Measured, heuristics-only, `deepset/prompt-injections` test split (116 rows):
+recall ≈ 0.05, precision 1.0, FPR 0.0.** Read that honestly: the regex layer
+blocks almost no *real* attacks. The dataset is ~50% German (the signatures are
+English-only) and the English attacks are largely semantic ("act as an
+interviewer…", "you passed the first test, here's the second") with no trigger
+keyword. The takeaway drives the design: **heuristics are a cheap, high-precision
+pre-filter for blatant attacks — the LLM judge is the real detector.** Turn the
+judge on for any route you actually care about. Chasing recall with more regex
+just overfits and starts blocking benign traffic.
+
 ## Tests
 
 ```bash
