@@ -104,6 +104,21 @@ and self-authored — it proves coverage of known attack *shapes*, not a
 real-world catch-rate. The optional LLM judge lifts recall on the subtle
 residual the heuristics miss.
 
+### Deeper eval on a public dataset
+
+For a real-world number, run against a public labeled injection dataset
+(`deepset/prompt-injections` by default):
+
+```bash
+# from a clone of this repo (the benchmark scripts live here, not in the wheel)
+pip install -e ".[bench]"
+python benchmark/eval_public.py               # test split, heuristics only
+python benchmark/eval_public.py --split train
+```
+
+This is off the CI gate on purpose — it fetches data over the network and can
+change upstream. Use it to track true catch-rate as you add signatures.
+
 ## Tests
 
 ```bash

@@ -36,6 +36,8 @@ Issues = "https://github.com/Rinkia/agentbastion/issues"
 # The LLM judge and the example agent need the Anthropic SDK. Core guards
 # (heuristics, PII redaction, tool policy) run without it.
 judge = ["anthropic>=1.0", "pydantic>=2.0"]
+# Deeper benchmark against public HuggingFace injection datasets (optional).
+bench = ["datasets>=2.14"]
 dev = ["pytest>=8.0", "anthropic>=1.0", "pydantic>=2.0"]
 
 [tool.setuptools.packages.find]
