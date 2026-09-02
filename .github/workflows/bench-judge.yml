@@ -1,0 +1,47 @@
+name: Public benchmark (judge)
+
+# Manual, informational, and it SPENDS MONEY: one Anthropic API call per row.
+# Needs the repo secret ANTHROPIC_API_KEY. Set it once:
+#   gh secret set ANTHROPIC_API_KEY --repo Rinkia/agentbastion
+# Use `limit` to cap cost. NOT a gate.
+on:
+  workflow_dispatch:
+    inputs:
+      dataset:
+        description: "HuggingFace dataset id"
+        default: "deepset/prompt-injections"
+      split:
+        description: "Split to evaluate"
+        default: "test"
+      judge_model:
+        description: "Judge model"
+        default: "claude-haiku-4-5"
+      limit:
+        description: "Max rows (0 = all; caps cost)"
+        default: "60"
+
+jobs:
+  judge-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[bench,judge]"
+      - name: Run judge-on eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret not set. Run: gh secret set ANTHROPIC_API_KEY --repo Rinkia/agentbastion"
+            exit 1
+          fi
+          python benchmark/eval_public.py \
+            --judge \
+            --dataset "${{ inputs.dataset }}" \
+            --split "${{ inputs.split }}" \
+            --judge-model "${{ inputs.judge_model }}" \
+            --limit "${{ inputs.limit }}"

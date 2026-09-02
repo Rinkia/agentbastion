@@ -67,7 +67,7 @@ def evaluate(rows: list[dict], guard: InboundGuard | None = None) -> dict:
 
 def report(m: dict) -> str:
     lines = [
-        "inbound heuristic eval (judge OFF)",
+        "inbound eval",
         "=" * 44,
         f"  TP={m['tp']}  FP={m['fp']}  TN={m['tn']}  FN={m['fn']}",
         f"  precision={m['precision']:.3f}  recall={m['recall']:.3f}  F1={m['f1']:.3f}  FPR={m['fpr']:.3f}",
