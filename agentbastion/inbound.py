@@ -54,6 +54,18 @@ _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
     # --- indirect / data-borne injection ---
     ("addresses_the_bot", re.compile(r"\b(?:ai assistant|to the (?:bot|assistant|ai|model)|note to the bot|assistant reading this|when you (?:process|read|see) this)\b", re.I), 3),
     ("exfil_action", re.compile(r"\b(?:email|send|forward|exfiltrate|leak|upload|post|transmit|reveal|expose|disclose|dump)\b.{0,45}\b(?:customer\s+(?:list|data|records)|order\s+data|credentials?|api\s+keys?|passwords?|database|internal\s+config|externally|to\s+\S+@)\b", re.I), 4),
+    # === German (de) - reference translation of the high-signal patterns, ==========
+    # === issue #1. Same narrow-pattern discipline: must not fire on benign =========
+    # === German business text ("ignorieren Sie meine vorherige E-Mail"). ===========
+    ("de_ignore_previous", re.compile(r"\bignorier(?:e|en Sie)\b.{0,25}\b(?:vorherig\w*|vorig\w*|obig\w*|bisherig\w*)\b.{0,15}\banweisung", re.I), 5),
+    ("de_ignore_rules", re.compile(r"\bignorier(?:e|en Sie)\b.{0,20}\b(?:deine\s+|Ihre\s+)?(?:richtlinien|regeln|anweisung\w*|einschränkung\w*)\b", re.I), 4),
+    ("de_forget", re.compile(r"\bvergiss\b.{0,25}\b(?:alles|anweisung\w*|besprochen|regeln|was wir)\b", re.I), 5),
+    ("de_new_instructions", re.compile(r"\bneue\s+anweisung(?:en)?\s*:?", re.I), 4),
+    ("de_reveal_system_prompt", re.compile(
+        r"\b(?:zeig(?:e|en Sie)?|nenne|verrate|nennen Sie|gib\b.{0,10}\baus|wiederhole|drucke)\b.{0,40}"
+        r"\b(?:system-?prompt|systemanweisung\w*|(?:deine|Ihre)\s+anweisung\w*|initial\w*\s+anweisung\w*|"
+        r"die\s+wörter\s+oben|versteckte\w*\s+prompt)\b", re.I), 5),
+    ("de_no_restrictions", re.compile(r"\b(?:du bist (?:jetzt|nicht mehr)|tu so als ob|ab jetzt)\b.{0,50}\b(?:uneingeschränkt|ohne\s+(?:regeln|einschränkung\w*|filter)|keine\s+(?:regeln|einschränkung\w*|filter|richtlinien)|alles\s+beantwort\w*)\b", re.I), 4),
 ]
 
 
