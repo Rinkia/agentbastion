@@ -144,6 +144,21 @@ block counts, and recent blocks, read live from the audit log.
 > ponytail note: keys are stored plaintext in the keys file (the operator's
 > secret store). Hashing them at rest is the next hardening step.
 
+### Operations
+
+| Feature | Env | Behaviour |
+|---|---|---|
+| Rate limiting | `AGENTBASTION_RATE_LIMIT=<per-min>` | Per-tenant fixed window; over-limit → `429`. `0` = off. |
+| Block-spike alerts | `AGENTBASTION_ALERT_THRESHOLD`, `AGENTBASTION_ALERT_WINDOW` (s), `AGENTBASTION_ALERT_WEBHOOK` | ≥ threshold blocks per tenant in the window → logs a warning and POSTs the alert to the webhook (debounced). |
+| Usage metering | `AGENTBASTION_USAGE=usage.json` | Durable per-tenant billable counters (input/output/tool + blocks). `GET /v1/usage` (admin). |
+| Hashed keys at rest | keys file value `sha256:<hex>` | Store hashes, not plaintext, in the keys file. Generate: `agentbastion-hash-key [KEY]`. |
+
+```bash
+# store a hashed key instead of plaintext
+agentbastion-hash-key mytenantkey        # -> sha256:9f86d0...  (paste into keys.yaml)
+agentbastion-hash-key                     # generates a random key + prints its hash
+```
+
 Container: [`Dockerfile`](Dockerfile) — `docker build -t agentbastion-gateway .`
 then `docker run -p 8080:8080 -e AGENTBASTION_API_KEY=… agentbastion-gateway`.
 

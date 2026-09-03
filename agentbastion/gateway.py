@@ -41,6 +41,7 @@ from pydantic import BaseModel
 from .events import EventLog
 from .events import stats as log_stats
 from .firewall import Firewall
+from .gateway_ops import AlertMonitor, RateLimiter, UsageMeter
 from .tools import load_policy
 
 
@@ -48,12 +49,20 @@ def _sha(key: str) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
+def _to_hash(value: str) -> str:
+    """A keys-file value is either a plaintext key or an at-rest hash written as
+    'sha256:<hex>'. Return the stored hash either way, so operators can keep
+    hashes (not plaintext) in the keys file."""
+    return value[7:] if value.startswith("sha256:") else _sha(value)
+
+
 class AuthStore:
-    """SHA-256 keyed tenant lookup + admin check. No plaintext key comparisons."""
+    """SHA-256 keyed tenant lookup + admin check. No plaintext key comparisons.
+    Keys may be stored as plaintext or as 'sha256:<hex>' hashes at rest."""
 
     def __init__(self, tenants: dict[str, str], admin_key: str | None) -> None:
-        self._by_hash = {_sha(k): name for name, k in tenants.items() if k}
-        self._admin_hash = _sha(admin_key) if admin_key else None
+        self._by_hash = {_to_hash(k): name for name, k in tenants.items() if k}
+        self._admin_hash = _to_hash(admin_key) if admin_key else None
 
     @property
     def configured(self) -> bool:
@@ -123,19 +132,31 @@ def create_app() -> FastAPI:
     allow_no_auth = os.getenv("AGENTBASTION_ALLOW_NO_AUTH") == "1"
     judge_on = firewall.inbound.judge is not None
 
-    app = FastAPI(title="agentbastion gateway", version="0.4.0")
+    limiter = RateLimiter(int(os.getenv("AGENTBASTION_RATE_LIMIT", "0")))
+    alerts = AlertMonitor(
+        threshold=int(os.getenv("AGENTBASTION_ALERT_THRESHOLD", "0")),
+        window_s=int(os.getenv("AGENTBASTION_ALERT_WINDOW", "60")),
+        webhook=os.getenv("AGENTBASTION_ALERT_WEBHOOK"),
+    )
+    usage = UsageMeter(os.getenv("AGENTBASTION_USAGE", "usage.json"))
+
+    app = FastAPI(title="agentbastion gateway", version="0.5.0")
 
     def require_tenant(x_api_key: str = Header(default="")) -> str:
         if not auth.configured:
             if allow_no_auth:
-                return "default"
-            raise HTTPException(503, "gateway auth not configured: set AGENTBASTION_API_KEY "
-                                     "or AGENTBASTION_KEYS (or AGENTBASTION_ALLOW_NO_AUTH=1 for dev)")
-        tenant = auth.tenant_for(x_api_key)
-        if tenant is None and auth.is_admin(x_api_key):
-            tenant = "admin"
-        if tenant is None:
-            raise HTTPException(401, "invalid or missing X-API-Key")
+                tenant = "default"
+            else:
+                raise HTTPException(503, "gateway auth not configured: set AGENTBASTION_API_KEY "
+                                         "or AGENTBASTION_KEYS (or AGENTBASTION_ALLOW_NO_AUTH=1 for dev)")
+        else:
+            tenant = auth.tenant_for(x_api_key)
+            if tenant is None and auth.is_admin(x_api_key):
+                tenant = "admin"
+            if tenant is None:
+                raise HTTPException(401, "invalid or missing X-API-Key")
+        if not limiter.allow(tenant):
+            raise HTTPException(429, "rate limit exceeded")
         return tenant
 
     def require_admin(x_api_key: str = Header(default="")) -> None:
@@ -154,21 +175,32 @@ def create_app() -> FastAPI:
     @app.post("/v1/check/input", response_model=InputVerdict)
     def check_input(body: TextIn, tenant: str = Depends(require_tenant)) -> InputVerdict:
         v = firewall.check_input(body.text, tenant=tenant)
+        usage.record(tenant, "input", blocked=not v.allowed)
+        if not v.allowed:
+            alerts.record_block(tenant, v.reason)
         return InputVerdict(allowed=v.allowed, reason=v.reason, matches=list(v.matches))
 
     @app.post("/v1/check/output", response_model=OutputVerdict)
     def check_output(body: TextIn, tenant: str = Depends(require_tenant)) -> OutputVerdict:
         redacted, v = firewall.check_output(body.text, tenant=tenant)
+        usage.record(tenant, "output", blocked=bool(v.matches))
         return OutputVerdict(redacted=redacted, findings=list(v.matches))
 
     @app.post("/v1/check/tool", response_model=ToolVerdict)
     def check_tool(body: ToolIn, tenant: str = Depends(require_tenant)) -> ToolVerdict:
         v = firewall.check_tool(body.name, body.input, tenant=tenant)
+        usage.record(tenant, "tool", blocked=not v.allowed)
+        if not v.allowed:
+            alerts.record_block(tenant, f"tool {body.name}: {v.reason}")
         return ToolVerdict(allowed=v.allowed, reason=v.reason)
 
     @app.get("/v1/stats", dependencies=[Depends(require_admin)])
     def stats_endpoint() -> dict:
         return log_stats(log_path)
+
+    @app.get("/v1/usage", dependencies=[Depends(require_admin)])
+    def usage_endpoint() -> dict:
+        return {"tenants": usage.snapshot()}
 
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard_page() -> str:
@@ -232,6 +264,21 @@ def _run() -> None:
     import uvicorn
 
     uvicorn.run("agentbastion.gateway:app", host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", "8080")))
+
+
+def _hash_key_cli() -> None:
+    """Console-script entry: `agentbastion-hash-key [KEY]`. Prints the
+    'sha256:<hex>' form to store in the keys file instead of plaintext. With no
+    arg, generates a strong random key (printed to stderr) and hashes it."""
+    import secrets
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] != "-":
+        key = sys.argv[1]
+    else:
+        key = secrets.token_urlsafe(32)
+        print(f"generated key (give this to the tenant): {key}", file=sys.stderr)
+    print("sha256:" + _sha(key))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1 @@
+{"default": {"input": 3, "output": 1, "tool": 1, "blocks": 2}, "acme": {"input": 2, "output": 0, "tool": 0, "blocks": 1}, "beta": {"input": 1, "output": 0, "tool": 0, "blocks": 1}}
