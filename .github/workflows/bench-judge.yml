@@ -19,6 +19,9 @@ on:
       limit:
         description: "Max rows (0 = all; caps cost)"
         default: "60"
+      workspace_id:
+        description: "Anthropic workspace id (required only for identity-linked API keys)"
+        default: ""
 
 jobs:
   judge-eval:
@@ -34,6 +37,7 @@ jobs:
       - name: Run judge-on eval
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_WORKSPACE_ID: ${{ inputs.workspace_id }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "::error::ANTHROPIC_API_KEY secret not set. Run: gh secret set ANTHROPIC_API_KEY --repo Rinkia/agentbastion"
