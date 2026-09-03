@@ -129,6 +129,40 @@ pre-filter for blatant attacks — the LLM judge is the real detector.** Turn th
 judge on for any route you actually care about. Chasing recall with more regex
 just overfits and starts blocking benign traffic.
 
+Run the same set with the judge on (costs API calls — one per row):
+
+```bash
+pip install -e ".[bench,judge]"
+export ANTHROPIC_API_KEY=...        # identity-linked key? also export ANTHROPIC_WORKSPACE_ID
+python benchmark/eval_public.py --judge --limit 60
+```
+
+**Measured, heuristics + judge (`claude-haiku-4-5`), same set:
+recall ≈ 0.50, precision 1.0, FPR 0.0** — a 10x lift over heuristics alone, with
+zero false positives. Read this honestly too: that 0.50 is a *dataset labeling
+ceiling*, not a detection gap. About half of `deepset`'s "malicious" rows are
+benign behaviour-change roleplay ("act as an interviewer", "generate SQL code")
+that the judge — correctly — passes. Pushing recall higher on this set would mean
+flagging benign roleplay and destroying the precision that keeps real users
+unbothered. A truer catch-rate needs a dataset that separates security-injection
+from behaviour-change roleplay.
+
+## Contributing
+
+Contributions welcome — issues and PRs.
+
+**Good first issue:** the offline regex signatures are English-only. The LLM
+judge is already multilingual, but the free heuristic layer isn't. Help us add
+other languages: [#1 — Add non-English prompt-injection signatures + corpus
+rows](https://github.com/Rinkia/agentbastion/issues/1). It's self-contained
+(touch `agentbastion/inbound.py` and `benchmark/corpus.jsonl`), one PR per
+language, and the CI gate gives instant feedback. Claim a language in the issue
+comments so we don't duplicate work.
+
+General rule for any signature change: keep patterns **narrow** (don't block
+benign business text) and keep `pytest -q` green — `tests/test_corpus.py` gates
+recall ≥ 0.85 and FPR ≤ 0.05.
+
 ## Tests
 
 ```bash
