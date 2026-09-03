@@ -105,19 +105,44 @@ curl -s localhost:8080/v1/check/input -H "X-API-Key: $AGENTBASTION_API_KEY" \
 # {"allowed":false,"reason":"signatures=ignore_previous,...","matches":[...]}
 ```
 
-Endpoints (all except `/healthz` require the `X-API-Key` header):
+| Method | Path | Auth | Body | Returns |
+|---|---|---|---|---|
+| GET  | `/healthz` | — | — | `{status, judge, tool_policy}` |
+| POST | `/v1/check/input` | tenant | `{"text": "..."}` | `{allowed, reason, matches}` |
+| POST | `/v1/check/output` | tenant | `{"text": "..."}` | `{redacted, findings}` |
+| POST | `/v1/check/tool` | tenant | `{"name": "...", "input": {...}}` | `{allowed, reason}` |
+| GET  | `/v1/stats` | admin | — | per-tenant aggregates (JSON) |
+| GET  | `/dashboard` | public shell | — | HTML dashboard |
 
-| Method | Path | Body | Returns |
-|---|---|---|---|
-| GET  | `/healthz` | — | `{status, judge, tool_policy}` |
-| POST | `/v1/check/input` | `{"text": "..."}` | `{allowed, reason, matches}` |
-| POST | `/v1/check/output` | `{"text": "..."}` | `{redacted, findings}` |
-| POST | `/v1/check/tool` | `{"name": "...", "input": {...}}` | `{allowed, reason}` |
+### Multi-tenant keys
 
-**Fail-closed:** with no `AGENTBASTION_API_KEY` set, the gateway refuses every
-request (503) unless you explicitly opt into `AGENTBASTION_ALLOW_NO_AUTH=1` for
-local dev. Keys are compared in constant time. Set `AGENTBASTION_TOOL_POLICY`
-to a policy YAML to enable `/v1/check/tool`.
+Point `AGENTBASTION_KEYS` at a YAML file (see [`keys.example.yaml`](keys.example.yaml)):
+
+```yaml
+admin_key: "<admin secret>"
+tenants:
+  acme: "<acme's key>"
+  globex: "<globex's key>"
+```
+
+Each tenant sends its key as `X-API-Key`; every request is tagged with the
+tenant in the audit log. Single-tenant mode (`AGENTBASTION_API_KEY`) still works
+— it maps to tenant `default`. Keys are looked up by SHA-256 (admin compared in
+constant time); no plaintext-compare loop.
+
+### Dashboard
+
+`GET /dashboard` serves an HTML page. The shell is public but carries **no data**
+— it prompts for the admin key in-browser and fetches `/v1/stats` with the
+`X-API-Key` header, so the key never lands in a URL. Per-tenant event counts,
+block counts, and recent blocks, read live from the audit log.
+
+**Fail-closed:** with no keys configured the gateway refuses every request
+(503) unless you set `AGENTBASTION_ALLOW_NO_AUTH=1` for local dev. Set
+`AGENTBASTION_TOOL_POLICY` to a policy YAML to enable `/v1/check/tool`.
+
+> ponytail note: keys are stored plaintext in the keys file (the operator's
+> secret store). Hashing them at rest is the next hardening step.
 
 Container: [`Dockerfile`](Dockerfile) — `docker build -t agentbastion-gateway .`
 then `docker run -p 8080:8080 -e AGENTBASTION_API_KEY=… agentbastion-gateway`.

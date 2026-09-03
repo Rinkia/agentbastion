@@ -1,0 +1,17 @@
+# Multi-tenant keys for the gateway. Point AGENTBASTION_KEYS at a copy of this.
+#
+#   export AGENTBASTION_KEYS=keys.yaml
+#   agentbastion-gateway
+#
+# Each tenant sends its key as the X-API-Key header on /v1/check/*; requests are
+# tagged with the tenant name in the audit log. The admin_key gates /v1/stats and
+# the /dashboard data.
+#
+# Generate strong random keys, e.g.:  python -c "import secrets; print(secrets.token_urlsafe(32))"
+# Keep this file secret (chmod 600); it is the operator's credential store.
+
+admin_key: "REPLACE_WITH_A_STRONG_RANDOM_ADMIN_KEY"
+
+tenants:
+  acme: "REPLACE_WITH_ACMES_KEY"
+  globex: "REPLACE_WITH_GLOBEXS_KEY"

@@ -49,7 +49,7 @@ class Firewall:
         return cls(inbound=inbound, **kwargs)
 
     # --- inbound -----------------------------------------------------------
-    def check_input(self, text: str) -> Verdict:
+    def check_input(self, text: str, tenant: Optional[str] = None) -> Verdict:
         result: ScanResult = self.inbound.scan(text)
         blocked = self.inbound.is_blocked(result)
         reason = _inbound_reason(result)
@@ -63,12 +63,12 @@ class Firewall:
             stage="inbound",
             decision="block" if blocked else "allow",
             detail=reason,
-            extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged},
+            extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant},
         ))
         return verdict
 
     # --- tool --------------------------------------------------------------
-    def check_tool(self, tool: str, tool_input: Any = None) -> Verdict:
+    def check_tool(self, tool: str, tool_input: Any = None, tenant: Optional[str] = None) -> Verdict:
         if self.tool_policy is None:
             return Verdict(True, "tool", "no policy configured")
         decision: ToolDecision = self.tool_policy.check(tool, tool_input)
@@ -78,11 +78,12 @@ class Firewall:
             stage="tool",
             decision="allow" if decision.allowed else "block",
             detail=f"{tool}: {decision.reason}",
+            extra={"tenant": tenant},
         ))
         return Verdict(decision.allowed, "tool", decision.reason, matches=(tool,))
 
     # --- outbound ----------------------------------------------------------
-    def check_output(self, text: str) -> tuple[str, Verdict]:
+    def check_output(self, text: str, tenant: Optional[str] = None) -> tuple[str, Verdict]:
         redacted, findings = self.outbound.redact(text)
         kinds = tuple(f.kind for f in findings)
         if findings:
@@ -90,7 +91,7 @@ class Firewall:
                 stage="outbound",
                 decision="redact",
                 detail=f"redacted {len(findings)}",
-                extra={"kinds": list(kinds)},
+                extra={"kinds": list(kinds), "tenant": tenant},
             ))
         verdict = Verdict(
             allowed=True,  # outbound redacts rather than blocks
