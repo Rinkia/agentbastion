@@ -137,7 +137,7 @@ class LLMJudge:
             data = json.loads(m.group())
             return bool(data.get("is_injection")), str(data.get("reason", ""))
         except Exception as e:  # noqa: BLE001 - fail open, but say so
-            return False, f"judge_unavailable: {type(e).__name__}"
+            return False, f"judge_unavailable: {type(e).__name__}: {e}"
 
 
 @dataclass
