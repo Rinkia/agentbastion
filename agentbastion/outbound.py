@@ -11,8 +11,12 @@ cost money (secrets + government IDs).
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 from dataclasses import dataclass
+
+log = logging.getLogger("agentbastion.outbound")
 
 
 @dataclass(frozen=True)
@@ -67,16 +71,58 @@ class PiiRedactor:
 
     def redact(self, text: str) -> tuple[str, list[PiiFinding]]:
         findings = self.scan(text)
-        if not findings:
-            return text, []
-        out = []
-        cursor = 0
-        for f in findings:
-            out.append(text[cursor:f.start])
-            out.append(f"<REDACTED:{f.kind}>")
-            cursor = f.end
-        out.append(text[cursor:])
-        return "".join(out), findings
+        return _redact_spans(text, findings), findings
+
+
+def _redact_spans(text: str, findings: list[PiiFinding]) -> str:
+    """Replace each finding span with <REDACTED:KIND>. Findings must be sorted,
+    non-overlapping (both PiiRedactor and PresidioRedactor guarantee this)."""
+    if not findings:
+        return text
+    out = []
+    cursor = 0
+    for f in findings:
+        out.append(text[cursor:f.start])
+        out.append(f"<REDACTED:{f.kind}>")
+        cursor = f.end
+    out.append(text[cursor:])
+    return "".join(out)
+
+
+class PresidioRedactor:
+    """PII redaction via Microsoft Presidio - names, addresses, locations, and
+    locale-aware NER the regex can't do. Lazy import (needs the [pii] extra).
+    Same `.redact(text) -> (redacted, [PiiFinding])` shape as PiiRedactor, so
+    it's a drop-in for Firewall.outbound."""
+
+    def __init__(self, language: str = "en", entities: list[str] | None = None) -> None:
+        from presidio_analyzer import AnalyzerEngine
+
+        self._analyzer = AnalyzerEngine()
+        self._language = language
+        self._entities = entities
+
+    def scan(self, text: str) -> list[PiiFinding]:
+        results = self._analyzer.analyze(text=text, language=self._language, entities=self._entities)
+        findings = [PiiFinding(r.entity_type, text[r.start:r.end], r.start, r.end)
+                    for r in sorted(results, key=lambda r: r.start)]
+        return _dedupe_overlaps(findings)
+
+    def redact(self, text: str) -> tuple[str, list[PiiFinding]]:
+        findings = self.scan(text)
+        return _redact_spans(text, findings), findings
+
+
+def build_redactor():
+    """Pick the PII backend from env. `AGENTBASTION_PII_BACKEND=presidio` uses
+    Presidio if installed, else falls back to the regex redactor (logged). Regex
+    is the default - zero dependency, catches the leaks that cost money."""
+    if os.getenv("AGENTBASTION_PII_BACKEND", "regex").lower() == "presidio":
+        try:
+            return PresidioRedactor(language=os.getenv("AGENTBASTION_PII_LANG", "en"))
+        except Exception as e:  # noqa: BLE001 - not installed / model missing -> regex
+            log.warning("presidio unavailable (%s); using regex PII redactor", type(e).__name__)
+    return PiiRedactor()
 
 
 def _dedupe_overlaps(findings: list[PiiFinding]) -> list[PiiFinding]:

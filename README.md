@@ -123,7 +123,7 @@ it will be attacked — because a security tool will be.
 
 Known v0 ceilings (all have an upgrade path in the code):
 - **Injection** = hand-rolled regex signatures (English, German, French, Spanish, Italian) + optional LLM judge (language-agnostic), plus pluggable `Detector`s: a model-based `HttpScannerDetector` (Llama Guard / Rebuff / your own) and a `SemanticDetector` (embedding-similarity, catches paraphrases). Pass any `.scan(text) -> (matches, severity)` object to `InboundGuard(detectors=[...])`. More signature languages welcome — see [issue #1](https://github.com/Rinkia/agentbastion/issues/1).
-- **PII** = regex for the leaks that cost money (SSN, credit card w/ Luhn, API keys, private keys, email). Swap in Microsoft Presidio for names/addresses/locale-aware NER.
+- **PII** = regex for the leaks that cost money (SSN, credit card w/ Luhn, API keys, private keys, email) by default; set `AGENTBASTION_PII_BACKEND=presidio` (install `agentbastion[pii]`) for Microsoft Presidio names/addresses/locale-aware NER. Falls back to regex if Presidio isn't installed.
 - **Rate limits** = in-memory per process. Move to Redis for multi-worker deployments.
 
 ## HTTP gateway (hosted tier)
