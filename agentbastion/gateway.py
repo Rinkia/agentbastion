@@ -119,7 +119,10 @@ def _build_firewall(log_path: str) -> Firewall:
 
         detectors.append(SemanticDetector(
             http_embedder(embed_url), threshold=float(os.getenv("AGENTBASTION_EMBED_THRESHOLD", "0.75"))))
-    fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache, detectors=detectors), log=log)
+    from .outbound import build_redactor
+
+    fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache, detectors=detectors),
+                  outbound=build_redactor(), log=log)
     policy_path = os.getenv("AGENTBASTION_TOOL_POLICY")
     if policy_path:
         fw.tool_policy = load_policy(policy_path)
