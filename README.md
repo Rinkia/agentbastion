@@ -227,6 +227,22 @@ authenticating at once. Only the static admin key can manage keys — a leaked
 tenant key can't mint more. Serve the admin endpoints over TLS (the create/rotate
 response carries the new key).
 
+### Playground / demo
+
+A public try-it page — paste text, see the verdict; "Replay attacks" runs a
+built-in sample set so visitors see what gets blocked. **Off by default** (no
+unauthenticated surface unless you opt in):
+
+```bash
+export AGENTBASTION_PLAYGROUND=1            # enable /playground + /v1/demo/*
+export AGENTBASTION_PLAYGROUND_RATE=30      # demo requests/min (default 30)
+```
+
+The demo is heuristics-only (no judge cost), rate-limited, input-capped (4000
+chars), and its input is **never written to the audit log**. `GET /playground`
+(HTML), `POST /v1/demo/check`, `GET /v1/demo/replay` — all public only when
+enabled.
+
 ### Billing (Stripe)
 
 `POST /v1/billing/report` (admin) computes each tenant's billable-unit delta
