@@ -197,6 +197,9 @@ block counts, and recent blocks, read live from the audit log.
 | Model scanner | `AGENTBASTION_SCANNER_URL`, `AGENTBASTION_SCANNER_THRESHOLD` | Adds an HTTP model-based detector (Llama Guard / Rebuff / your own). POSTs `{text}`, expects `{injection}`/`{score}`. Fail-soft. |
 | Semantic detection | `AGENTBASTION_EMBED_URL`, `AGENTBASTION_EMBED_THRESHOLD` | Adds an embedding-similarity detector — catches paraphrased attacks by cosine distance to attack templates. POSTs `{texts}`, expects `{embeddings}`. Fail-soft. |
 | Metered billing | `AGENTBASTION_STRIPE_API_KEY`, `AGENTBASTION_STRIPE_METER`, `AGENTBASTION_BILLING_MAP` | `POST /v1/billing/report` (admin) reports each tenant's usage delta to Stripe. No key → dry-run that still returns the deltas. Run it on a cron. |
+| Audit export | — | `GET /v1/audit/export?since=&until=&tenant=&format=jsonl\|csv` (admin) — filtered compliance export of the audit log. |
+| Retention | — | `POST /v1/audit/prune?older_than_days=N` (admin) — drop events older than N days (atomic rewrite). Run on a cron. |
+| Log redaction | `AGENTBASTION_LOG_REDACT=1` | Scrub PII from audit-log `detail` before writing, so the trail isn't itself a PII store. |
 | Hashed keys at rest | keys file value `sha256:<hex>` | Store hashes, not plaintext, in the keys file. Generate: `agentbastion-hash-key [KEY]`. |
 
 ```bash

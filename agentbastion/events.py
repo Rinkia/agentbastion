@@ -8,9 +8,10 @@ hosted dashboard is the paid tier later.
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -32,16 +33,93 @@ class Event:
 
 
 class EventLog:
-    """Append-only JSONL sink. Pass path=None to disable logging (no-op)."""
+    """Append-only JSONL sink. Pass path=None to disable logging (no-op).
 
-    def __init__(self, path: Optional[str | Path] = "agentbastion.jsonl") -> None:
+    Optional `redactor` (any object with `.redact(text) -> (redacted, findings)`)
+    scrubs PII from the event `detail` before it is written, so the audit trail
+    doesn't itself become a store of sensitive data (a compliance concern, #12)."""
+
+    def __init__(self, path: Optional[str | Path] = "agentbastion.jsonl", redactor=None) -> None:
         self._path = Path(path) if path is not None else None
+        self._redactor = redactor
 
     def log(self, event: Event) -> None:
         if self._path is None:
             return
+        if self._redactor is not None and event.detail:
+            try:
+                event = replace(event, detail=self._redactor.redact(event.detail)[0])
+            except Exception:  # noqa: BLE001 - logging must never break the request
+                pass
         with self._path.open("a", encoding="utf-8") as f:
             f.write(event.to_json() + "\n")
+
+
+def _iter_events(path: Path):
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def export_events(path: str | Path, since: Optional[str] = None, until: Optional[str] = None,
+                  tenant: Optional[str] = None, fmt: str = "jsonl") -> str:
+    """Filtered audit export for compliance (#12). `since`/`until` are ISO-8601
+    UTC strings (lexicographic compare works for that format); `tenant` filters
+    by the logged tenant; `fmt` is 'jsonl' or 'csv'."""
+    rows = []
+    for e in _iter_events(Path(path)):
+        ts = e.get("ts", "")
+        if since and ts < since:
+            continue
+        if until and ts > until:
+            continue
+        if tenant and (e.get("extra") or {}).get("tenant") != tenant:
+            continue
+        rows.append(e)
+    if fmt == "csv":
+        import csv
+        import io
+
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["ts", "stage", "decision", "tenant", "detail"])
+        for e in rows:
+            w.writerow([e.get("ts", ""), e.get("stage", ""), e.get("decision", ""),
+                        (e.get("extra") or {}).get("tenant", ""), e.get("detail", "")])
+        return buf.getvalue()
+    return "\n".join(json.dumps(e, ensure_ascii=False) for e in rows)
+
+
+def prune_events(path: str | Path, older_than_days: int) -> int:
+    """Retention: drop events older than `older_than_days`, rewrite atomically.
+    Returns the number removed."""
+    p = Path(path)
+    if not p.exists() or older_than_days <= 0:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+    kept, removed = [], 0
+    for e in _iter_events(p):
+        ts = e.get("ts", "")
+        try:
+            keep = datetime.fromisoformat(ts) >= cutoff
+        except (ValueError, TypeError):
+            keep = True  # unparseable timestamp -> keep (don't lose data)
+        if keep:
+            kept.append(e)
+        else:
+            removed += 1
+    tmp = str(p) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        for e in kept:
+            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+    os.replace(tmp, p)  # atomic
+    return removed
 
 
 def dashboard(path: str | Path = "agentbastion.jsonl") -> str:

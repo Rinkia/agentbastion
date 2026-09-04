@@ -43,8 +43,9 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from .billing import build_reporter
-from .events import EventLog
+from .events import EventLog, export_events, prune_events
 from .events import stats as log_stats
+from fastapi.responses import PlainTextResponse
 from .firewall import Firewall
 from .gateway_ops import RateLimiter, UsageMeter, build_alert_monitor
 from .keys import KeyRegistry
@@ -98,8 +99,12 @@ def _load_auth() -> AuthStore:
 def _build_firewall(log_path: str) -> Firewall:
     from .cache import TTLCache
     from .inbound import HttpScannerDetector, InboundGuard, LLMJudge
+    from .outbound import build_redactor
 
-    log = EventLog(log_path)
+    redactor = build_redactor()
+    # Optional: scrub PII from the audit log's detail field (compliance, #12).
+    log_redactor = redactor if os.getenv("AGENTBASTION_LOG_REDACT") == "1" else None
+    log = EventLog(log_path, redactor=log_redactor)
     ttl = int(os.getenv("AGENTBASTION_CACHE_TTL", "0"))  # 0 = caching off
     cache = TTLCache(int(os.getenv("AGENTBASTION_CACHE_SIZE", "1024")), ttl) if ttl > 0 else None
     timeout = float(os.getenv("AGENTBASTION_JUDGE_TIMEOUT", "0")) or None  # 0 = no budget
@@ -119,10 +124,8 @@ def _build_firewall(log_path: str) -> Firewall:
 
         detectors.append(SemanticDetector(
             http_embedder(embed_url), threshold=float(os.getenv("AGENTBASTION_EMBED_THRESHOLD", "0.75"))))
-    from .outbound import build_redactor
-
     fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache, detectors=detectors),
-                  outbound=build_redactor(), log=log)
+                  outbound=redactor, log=log)
     policy_path = os.getenv("AGENTBASTION_TOOL_POLICY")
     if policy_path:
         fw.tool_policy = load_policy(policy_path)
@@ -277,6 +280,22 @@ def create_app() -> FastAPI:
             raise HTTPException(404, "unknown key_id")
         raw, pub = result
         return {"key": raw, "note": "old key revoked - store this new key now", **pub}
+
+    # --- compliance / audit (#12); admin only ---
+    @app.get("/v1/audit/export", dependencies=[Depends(require_admin)])
+    def audit_export(since: str = "", until: str = "", tenant: str = "", format: str = "jsonl"):
+        if format not in ("jsonl", "csv"):
+            raise HTTPException(400, "format must be 'jsonl' or 'csv'")
+        body = export_events(log_path, since=since or None, until=until or None,
+                             tenant=tenant or None, fmt=format)
+        media = "text/csv" if format == "csv" else "application/x-ndjson"
+        return PlainTextResponse(body, media_type=media)
+
+    @app.post("/v1/audit/prune", dependencies=[Depends(require_admin)])
+    def audit_prune(older_than_days: int) -> dict:
+        if older_than_days <= 0:
+            raise HTTPException(400, "older_than_days must be a positive integer")
+        return {"removed": prune_events(log_path, older_than_days)}
 
     @app.post("/v1/billing/report", dependencies=[Depends(require_admin)])
     def billing_report() -> dict:
