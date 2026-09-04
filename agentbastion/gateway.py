@@ -97,7 +97,7 @@ def _load_auth() -> AuthStore:
 
 def _build_firewall(log_path: str) -> Firewall:
     from .cache import TTLCache
-    from .inbound import InboundGuard, LLMJudge
+    from .inbound import HttpScannerDetector, InboundGuard, LLMJudge
 
     log = EventLog(log_path)
     ttl = int(os.getenv("AGENTBASTION_CACHE_TTL", "0"))  # 0 = caching off
@@ -108,7 +108,12 @@ def _build_firewall(log_path: str) -> Firewall:
         import anthropic
 
         judge = LLMJudge(anthropic.Anthropic(), timeout_s=timeout)
-    fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache), log=log)
+    detectors = []
+    scanner_url = os.getenv("AGENTBASTION_SCANNER_URL")  # self-hosted model scanner (#3)
+    if scanner_url:
+        detectors.append(HttpScannerDetector(
+            scanner_url, threshold=float(os.getenv("AGENTBASTION_SCANNER_THRESHOLD", "0.5"))))
+    fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache, detectors=detectors), log=log)
     policy_path = os.getenv("AGENTBASTION_TOOL_POLICY")
     if policy_path:
         fw.tool_policy = load_policy(policy_path)

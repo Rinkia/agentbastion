@@ -122,7 +122,7 @@ tool scoping, human approval on money movement, and real monitoring. Build like
 it will be attacked — because a security tool will be.
 
 Known v0 ceilings (all have an upgrade path in the code):
-- **Injection** = hand-rolled regex signatures + optional LLM judge. Swap in Llama Guard / Rebuff / a fine-tune behind the same interface.
+- **Injection** = hand-rolled regex signatures + optional LLM judge, and you can add a model-based scanner (Llama Guard / Rebuff / your own) as a `Detector` — point `HttpScannerDetector` at a classifier endpoint you host, or pass any `.scan(text) -> (matches, severity)` object to `InboundGuard(detectors=[...])`.
 - **PII** = regex for the leaks that cost money (SSN, credit card w/ Luhn, API keys, private keys, email). Swap in Microsoft Presidio for names/addresses/locale-aware NER.
 - **Rate limits** = in-memory per process. Move to Redis for multi-worker deployments.
 
@@ -194,6 +194,7 @@ block counts, and recent blocks, read live from the audit log.
 | Usage metering | `AGENTBASTION_USAGE=usage.json` | Durable per-tenant billable counters (input/output/tool + blocks). `GET /v1/usage` (admin). |
 | Verdict cache | `AGENTBASTION_CACHE_TTL` (s, 0=off), `AGENTBASTION_CACHE_SIZE` | LRU+TTL memoize of inbound scans so repeat inputs skip the (paid) judge. Bounded size caps memory. |
 | Judge latency budget | `AGENTBASTION_JUDGE_TIMEOUT` (s, 0=off) | Hard cap per judge call; on timeout, fall back to heuristics-only (fail-open). |
+| Model scanner | `AGENTBASTION_SCANNER_URL`, `AGENTBASTION_SCANNER_THRESHOLD` | Adds an HTTP model-based detector (Llama Guard / Rebuff / your own). POSTs `{text}`, expects `{injection}`/`{score}`. Fail-soft. |
 | Metered billing | `AGENTBASTION_STRIPE_API_KEY`, `AGENTBASTION_STRIPE_METER`, `AGENTBASTION_BILLING_MAP` | `POST /v1/billing/report` (admin) reports each tenant's usage delta to Stripe. No key → dry-run that still returns the deltas. Run it on a cron. |
 | Hashed keys at rest | keys file value `sha256:<hex>` | Store hashes, not plaintext, in the keys file. Generate: `agentbastion-hash-key [KEY]`. |
 
