@@ -179,6 +179,7 @@ block counts, and recent blocks, read live from the audit log.
 | Rate limiting | `AGENTBASTION_RATE_LIMIT=<per-min>` | Per-tenant fixed window; over-limit → `429`. `0` = off. |
 | Block-spike alerts | `AGENTBASTION_ALERT_THRESHOLD`, `AGENTBASTION_ALERT_WINDOW` (s), `AGENTBASTION_ALERT_WEBHOOK` | ≥ threshold blocks per tenant in the window → logs a warning and POSTs the alert to the webhook (debounced). |
 | Usage metering | `AGENTBASTION_USAGE=usage.json` | Durable per-tenant billable counters (input/output/tool + blocks). `GET /v1/usage` (admin). |
+| Metered billing | `AGENTBASTION_STRIPE_API_KEY`, `AGENTBASTION_STRIPE_METER`, `AGENTBASTION_BILLING_MAP` | `POST /v1/billing/report` (admin) reports each tenant's usage delta to Stripe. No key → dry-run that still returns the deltas. Run it on a cron. |
 | Hashed keys at rest | keys file value `sha256:<hex>` | Store hashes, not plaintext, in the keys file. Generate: `agentbastion-hash-key [KEY]`. |
 
 ```bash
@@ -186,6 +187,23 @@ block counts, and recent blocks, read live from the audit log.
 agentbastion-hash-key mytenantkey        # -> sha256:9f86d0...  (paste into keys.yaml)
 agentbastion-hash-key                     # generates a random key + prints its hash
 ```
+
+### Billing (Stripe)
+
+`POST /v1/billing/report` (admin) computes each tenant's billable-unit delta
+since the last run and reports it to Stripe's Billing Meters API. Idempotent —
+state persists in `billing_state.json`, so run it on a cron (hourly/daily).
+
+```bash
+pip install "agentbastion[gateway,billing]"
+export AGENTBASTION_STRIPE_API_KEY=sk_live_...
+export AGENTBASTION_STRIPE_METER=agentbastion_checks    # your Stripe meter event name
+export AGENTBASTION_BILLING_MAP=customers.json          # {"acme": "cus_123", ...}
+```
+
+Without the Stripe key it runs as a dry-run: it still returns the per-tenant
+deltas (and flags tenants with no mapped customer), so you can see what *would*
+be billed. A billing outage never breaks the request path.
 
 Container: [`Dockerfile`](Dockerfile) — `docker build -t agentbastion-gateway .`
 then `docker run -p 8080:8080 -e AGENTBASTION_API_KEY=… agentbastion-gateway`.

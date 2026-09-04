@@ -38,6 +38,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from .billing import build_reporter
 from .events import EventLog
 from .events import stats as log_stats
 from .firewall import Firewall
@@ -139,8 +140,9 @@ def create_app() -> FastAPI:
         webhook=os.getenv("AGENTBASTION_ALERT_WEBHOOK"),
     )
     usage = UsageMeter(os.getenv("AGENTBASTION_USAGE", "usage.json"))
+    billing = build_reporter(usage, os.getenv("AGENTBASTION_BILLING_STATE", "billing_state.json"))
 
-    app = FastAPI(title="agentbastion gateway", version="0.6.0")
+    app = FastAPI(title="agentbastion gateway", version="0.7.0")
 
     def require_tenant(x_api_key: str = Header(default="")) -> str:
         if not auth.configured:
@@ -209,6 +211,13 @@ def create_app() -> FastAPI:
     @app.get("/v1/usage", dependencies=[Depends(require_admin)])
     def usage_endpoint() -> dict:
         return {"tenants": usage.snapshot()}
+
+    @app.post("/v1/billing/report", dependencies=[Depends(require_admin)])
+    def billing_report() -> dict:
+        # Reports each tenant's usage delta since the last run to the billing
+        # provider (Stripe if configured, else a no-op that still returns deltas).
+        # Run this on a cron; it is safe to call repeatedly.
+        return {"reported": billing.report()}
 
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard_page() -> str:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentbastion"
-version = "0.6.0"
+version = "0.7.0"
 description = "A firewall for AI agents: block prompt injection, guard tool calls, redact PII/secrets."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,6 +40,8 @@ judge = ["anthropic>=1.0"]
 bench = ["datasets>=2.14"]
 # HTTP gateway (hosted tier).
 gateway = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+# Stripe metered billing on /v1/usage.
+billing = ["stripe>=7.0"]
 dev = ["pytest>=8.0", "anthropic>=1.0", "fastapi>=0.110", "httpx>=0.27"]
 
 [project.scripts]

@@ -4,14 +4,22 @@ reads config at import time."""
 
 import os
 
+import tempfile
+
 os.environ["AGENTBASTION_API_KEY"] = "test-gateway-key"
 os.environ.pop("ANTHROPIC_API_KEY", None)  # keep the judge off for determinism
+_tmp = tempfile.mkdtemp()
+os.environ["AGENTBASTION_LOG"] = os.path.join(_tmp, "log.jsonl")
+os.environ["AGENTBASTION_USAGE"] = os.path.join(_tmp, "usage.json")
+os.environ["AGENTBASTION_BILLING_STATE"] = os.path.join(_tmp, "billing.json")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from agentbastion.gateway import app  # noqa: E402
+from agentbastion.gateway import create_app  # noqa: E402
 
-client = TestClient(app)
+# Build a fresh app from the env set above (don't rely on the module-level `app`,
+# which is built at first import and may predate this env under some test orders).
+client = TestClient(create_app())
 AUTH = {"X-API-Key": "test-gateway-key"}
 
 

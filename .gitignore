@@ -8,4 +8,7 @@ build/
 dist/
 # runtime audit log (default filename); keep benchmark/corpus.jsonl tracked
 agentbastion.jsonl
+# runtime gateway state
+usage.json
+billing_state.json
 .env
