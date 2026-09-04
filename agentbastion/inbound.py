@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import concurrent.futures as _cf
 import hashlib
+import logging
 import re
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Protocol
 
 from .cache import TTLCache
+
+log = logging.getLogger("agentbastion.inbound")
 
 # Bounded pool for time-boxed judge calls. A hung call keeps its slot until the
 # underlying request returns (Python can't kill threads), so this caps how many
@@ -93,6 +96,14 @@ class ScanResult:
         return not self.matches and not self.judge_flagged
 
 
+class Detector(Protocol):
+    """A detector maps text -> (matched signature names, max severity 0-5).
+    HeuristicDetector is the default; plug in model-based ones (issue #3) via
+    InboundGuard(detectors=[...])."""
+
+    def scan(self, text: str) -> tuple[tuple[str, ...], int]: ...
+
+
 class HeuristicDetector:
     """Offline regex signatures. No network, no cost."""
 
@@ -107,6 +118,40 @@ class HeuristicDetector:
                 hits.append(name)
                 max_sev = max(max_sev, severity)
         return tuple(hits), max_sev
+
+
+class HttpScannerDetector:
+    """Model-based scanner behind an HTTP endpoint you host - Llama Guard, Rebuff,
+    or any classifier. POSTs {"text": ...}; expects JSON with an injection flag
+    or score (`injection`/`flagged` bool, or `score` float >= threshold).
+
+    Fail-soft: any error (endpoint down, bad response, timeout) yields no match,
+    so the heuristic + judge layers still run - a scanner outage reduces coverage
+    but never breaks the request. The endpoint URL is operator config, not request
+    input, so there's no attacker-controlled SSRF here.
+    """
+
+    def __init__(self, url: str, threshold: float = 0.5, label: str = "model_scanner",
+                 timeout_s: float = 2.0, severity: int = 5) -> None:
+        self.url = url
+        self.threshold = threshold
+        self.label = label
+        self.timeout_s = timeout_s
+        self.severity = severity
+
+    def scan(self, text: str) -> tuple[tuple[str, ...], int]:
+        try:
+            import httpx
+
+            resp = httpx.post(self.url, json={"text": text}, timeout=self.timeout_s)
+            resp.raise_for_status()
+            data = resp.json()
+            flagged = bool(data.get("injection") or data.get("flagged")) or \
+                float(data.get("score", 0) or 0) >= self.threshold
+            return ((self.label,), self.severity) if flagged else ((), 0)
+        except Exception as e:  # noqa: BLE001 - fail soft; other layers still run
+            log.warning("model scanner error (%s); skipping", type(e).__name__)
+            return (), 0
 
 
 class LLMJudge:
@@ -184,6 +229,7 @@ class InboundGuard:
     judge: Optional[LLMJudge] = None
     block_threshold: int = 4  # heuristic severity at/above this => block
     cache: Optional[TTLCache] = None  # memoize verdicts (keyed by sha256(text))
+    detectors: list = field(default_factory=list)  # extra Detectors (e.g. model-based, #3)
 
     def scan(self, text: str) -> ScanResult:
         key = None
@@ -193,6 +239,10 @@ class InboundGuard:
             if hit is not None:
                 return hit
         matches, max_sev = self.heuristics.scan(text)
+        for det in self.detectors:  # additional detectors merge into the result
+            m, s = det.scan(text)
+            matches = matches + tuple(x for x in m if x not in matches)
+            max_sev = max(max_sev, s)
         judge_flagged, judge_reason = False, ""
         if self.judge is not None:
             judge_flagged, judge_reason = self.judge.judge(text)
