@@ -113,6 +113,12 @@ def _build_firewall(log_path: str) -> Firewall:
     if scanner_url:
         detectors.append(HttpScannerDetector(
             scanner_url, threshold=float(os.getenv("AGENTBASTION_SCANNER_THRESHOLD", "0.5"))))
+    embed_url = os.getenv("AGENTBASTION_EMBED_URL")  # self-hosted embedder for semantic detection (#5)
+    if embed_url:
+        from .semantic import SemanticDetector, http_embedder
+
+        detectors.append(SemanticDetector(
+            http_embedder(embed_url), threshold=float(os.getenv("AGENTBASTION_EMBED_THRESHOLD", "0.75"))))
     fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache, detectors=detectors), log=log)
     policy_path = os.getenv("AGENTBASTION_TOOL_POLICY")
     if policy_path:
