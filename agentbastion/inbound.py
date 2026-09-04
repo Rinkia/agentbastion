@@ -79,6 +79,29 @@ _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
         r"\b(?:system-?prompt|systemanweisung\w*|(?:deine|Ihre)\s+anweisung\w*|initial\w*\s+anweisung\w*|"
         r"die\s+wörter\s+oben|versteckte\w*\s+prompt)\b", re.I), 5),
     ("de_no_restrictions", re.compile(r"\b(?:du bist (?:jetzt|nicht mehr)|tu so als ob|ab jetzt)\b.{0,50}\b(?:uneingeschränkt|ohne\s+(?:regeln|einschränkung\w*|filter)|keine\s+(?:regeln|einschränkung\w*|filter|richtlinien)|alles\s+beantwort\w*)\b", re.I), 4),
+    # === French (fr) - issue #1. Romance langs put the adjective after the noun,
+    # === so patterns match "instructions précédentes", not the reverse. Narrow:
+    # === "ignorez mon e-mail précédent" (no "instructions") must NOT fire.
+    ("fr_ignore_previous", re.compile(r"\bignore(?:z|r)?\b.{0,20}\binstructions?\b.{0,15}\b(?:précédent\w*|precedent\w*|antérieur\w*|anterieur\w*|ci-dessus)\b", re.I), 5),
+    ("fr_ignore_rules", re.compile(r"\bignore(?:z|r)?\b.{0,15}\b(?:tes|vos|les)\s+(?:règles|regles|directives|consignes|instructions?)\b", re.I), 4),
+    ("fr_forget", re.compile(r"\boublie(?:z|r)?\b.{0,25}\b(?:tout|toutes?\s+les\s+instructions?|instructions?)\b", re.I), 4),
+    ("fr_new_instructions", re.compile(r"\bnouvelles?\s+instructions?\s*:?", re.I), 4),
+    ("fr_reveal_system_prompt", re.compile(r"\b(?:révèle|revele|montre|affiche|donne|répète|repete|dévoile|devoile)(?:z|-moi)?\b.{0,40}\b(?:prompt\s+système|prompt\s+systeme|instructions?\s+système|instructions?\s+systeme|(?:tes|vos)\s+instructions?|invite\s+système)\b", re.I), 5),
+    ("fr_no_restrictions", re.compile(r"\b(?:tu es|vous êtes|vous etes|désormais|desormais|dorénavant|à partir de maintenant)\b.{0,45}\b(?:sans\s+(?:restrictions?|règles?|regles?|filtre|limites?)|aucune\s+(?:règle|regle|restriction|limite))\b", re.I), 4),
+    # === Spanish (es) - issue #1. ===
+    ("es_ignore_previous", re.compile(r"\bignora(?:r)?\b.{0,20}\binstrucciones?\b.{0,15}\b(?:anteriores?|previas?)\b", re.I), 5),
+    ("es_ignore_rules", re.compile(r"\bignora(?:r)?\b.{0,15}\b(?:tus|sus|las)\s+(?:reglas|directrices|normas|instrucciones?)\b", re.I), 4),
+    ("es_forget", re.compile(r"\bolvida(?:r)?\b.{0,25}\b(?:todo|todas?\s+las\s+instrucciones?|instrucciones?)\b", re.I), 4),
+    ("es_new_instructions", re.compile(r"\bnuevas?\s+instrucciones?\s*:?", re.I), 4),
+    ("es_reveal_system_prompt", re.compile(r"\b(?:revela|muestra|muéstrame|muestrame|imprime|repite|dime|díme)\b.{0,40}\b(?:prompt\s+del?\s+sistema|instrucciones?\s+del?\s+sistema|(?:tus|sus)\s+instrucciones?|indicaciones?\s+del?\s+sistema)\b", re.I), 5),
+    ("es_no_restrictions", re.compile(r"\b(?:ahora eres|eres ahora|a partir de ahora|desde ahora)\b.{0,45}\b(?:sin\s+(?:restricciones?|reglas?|filtros?|límites?|limites?)|ninguna\s+(?:regla|restricción|restriccion))\b", re.I), 4),
+    # === Italian (it) - issue #1. ===
+    ("it_ignore_previous", re.compile(r"\bignora(?:re)?\b.{0,20}\bistruzioni?\b.{0,15}\b(?:precedenti?|antecedenti?|sopra)\b", re.I), 5),
+    ("it_ignore_rules", re.compile(r"\bignora(?:re)?\b.{0,15}\b(?:le\s+tue|le\s+sue|le)\s+(?:regole|direttive|istruzioni?)\b", re.I), 4),
+    ("it_forget", re.compile(r"\bdimentica(?:re)?\b.{0,25}\b(?:tutto|tutte?\s+le\s+istruzioni?|istruzioni?)\b", re.I), 4),
+    ("it_new_instructions", re.compile(r"\bnuove\s+istruzioni?\s*:?", re.I), 4),
+    ("it_reveal_system_prompt", re.compile(r"\b(?:rivela|mostra|mostrami|stampa|ripeti|dimmi)\b.{0,40}\b(?:prompt\s+di\s+sistema|istruzioni?\s+di\s+sistema|(?:le\s+tue|le\s+sue)\s+istruzioni?)\b", re.I), 5),
+    ("it_no_restrictions", re.compile(r"\b(?:ora sei|sei ora|d'ora in poi|da ora)\b.{0,45}\b(?:senza\s+(?:restrizioni?|regole|filtri?|limiti?)|nessuna\s+(?:regola|restrizione))\b", re.I), 4),
 ]
 
 
