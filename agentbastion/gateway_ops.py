@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Part of the agentbastion commercial gateway. Licensed under the Business Source
+# License 1.1 (see LICENSE-BSL), NOT MIT. Converts to Apache-2.0 on the Change Date.
 """Gateway operational features: rate limiting, block-spike alerting, and usage
 metering. Kept out of gateway.py so the routing layer stays readable.
 

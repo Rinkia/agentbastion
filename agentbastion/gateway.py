@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Part of the agentbastion commercial gateway. Licensed under the Business Source
+# License 1.1 (see LICENSE-BSL), NOT MIT. Converts to Apache-2.0 on the Change Date.
 """HTTP gateway - the hosted tier. A FastAPI service in front of the same
 `Firewall` the SDK uses, with multi-tenant API keys and an admin dashboard.
 

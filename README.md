@@ -305,4 +305,11 @@ pip install "agentbastion[dev]"
 pytest -q
 ```
 
-MIT.
+## License
+
+**Open-core.** The core SDK — guards, integrations, benchmark — is **MIT**
+([`LICENSE`](LICENSE)): use it, fork it, ship it commercially, no strings. The
+commercial gateway (`gateway.py`, `gateway_ops.py`, `billing.py`) is
+source-available under **BSL 1.1** ([`LICENSE-BSL`](LICENSE-BSL)) — read and
+self-host freely, but don't resell it as a competing hosted service; it converts
+to Apache 2.0 in 2029. Details: [`LICENSING.md`](LICENSING.md).

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentbastion"
-version = "0.7.0"
+version = "0.7.1"
 description = "A firewall for AI agents: block prompt injection, guard tool calls, redact PII/secrets."
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "MIT AND BUSL-1.1"
+license-files = ["LICENSE", "LICENSE-BSL"]
 authors = [{ name = "Stefano Rizzello", email = "rizzellostefano@gmail.com" }]
 keywords = ["llm", "security", "prompt-injection", "ai-agent", "pii", "guardrails", "anthropic"]
 classifiers = [
