@@ -177,7 +177,7 @@ def create_app() -> FastAPI:
     usage = UsageMeter(os.getenv("AGENTBASTION_USAGE", "usage.json"), store=store)
     billing = build_reporter(usage, os.getenv("AGENTBASTION_BILLING_STATE", "billing_state.json"))
 
-    app = FastAPI(title="agentbastion gateway", version="0.7.0")
+    app = FastAPI(title="agentbastion gateway", version="0.8.0")
 
     def require_tenant(x_api_key: str = Header(default="")) -> str:
         if not auth.configured:
