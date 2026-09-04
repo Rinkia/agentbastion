@@ -11,9 +11,10 @@ Licensor:             Stefano Rizzello
 
 Licensed Work:        The agentbastion commercial gateway components, namely the
                       files agentbastion/gateway.py, agentbastion/gateway_ops.py,
-                      and agentbastion/billing.py, together with any other file
-                      that carries a notice referring to this Business Source
-                      License. The Licensed Work is (c) 2026 Stefano Rizzello.
+                      agentbastion/billing.py, and agentbastion/store.py, together
+                      with any other file that carries a notice referring to this
+                      Business Source License. The Licensed Work is (c) 2026
+                      Stefano Rizzello.
 
                       All other files in this repository are licensed separately
                       under the MIT License (see LICENSE) and are NOT covered by
