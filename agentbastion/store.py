@@ -29,6 +29,11 @@ class Store(Protocol):
     def incr_window(self, key: str, ttl_s: int) -> int: ...
     def hincr(self, name: str, field: str, amount: int = 1) -> None: ...
     def scan_hashes(self, prefix: str) -> dict[str, dict[str, int]]: ...
+    # KV ops (used by the key registry, #7)
+    def get(self, key: str) -> Optional[str]: ...
+    def set(self, key: str, value: str, ttl_s: Optional[int] = None) -> None: ...
+    def delete(self, key: str) -> None: ...
+    def keys(self, prefix: str) -> list[str]: ...
 
 
 class RedisStore:
@@ -53,6 +58,18 @@ class RedisStore:
             tenant = key[len(prefix):]
             out[tenant] = {k: int(v) for k, v in self._r.hgetall(key).items()}
         return out
+
+    def get(self, key: str) -> Optional[str]:
+        return self._r.get(key)
+
+    def set(self, key: str, value: str, ttl_s: Optional[int] = None) -> None:
+        self._r.set(key, value, ex=ttl_s if ttl_s else None)
+
+    def delete(self, key: str) -> None:
+        self._r.delete(key)
+
+    def keys(self, prefix: str) -> list[str]:
+        return list(self._r.scan_iter(match=prefix + "*"))
 
 
 def build_store() -> Optional[Store]:
