@@ -188,6 +188,25 @@ agentbastion-hash-key mytenantkey        # -> sha256:9f86d0...  (paste into keys
 agentbastion-hash-key                     # generates a random key + prints its hash
 ```
 
+### API key lifecycle
+
+Beyond the static keys file, the admin can create/rotate/revoke tenant keys at
+runtime (admin key required; backed by the shared store from #6 so changes apply
+across processes):
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| POST | `/v1/admin/keys` | `{tenant, scopes?, ttl_seconds?}` | Returns the new key **once** — store it. Only the SHA-256 hash is kept. |
+| GET  | `/v1/admin/keys` | — | Lists key metadata (id, tenant, scopes, expiry) — never the keys. |
+| POST | `/v1/admin/keys/{key_id}/revoke` | — | Revokes immediately. |
+| POST | `/v1/admin/keys/{key_id}/rotate` | — | Revokes the old key, issues a new one for the same tenant/scopes. |
+
+Keys are high-entropy (`secrets.token_urlsafe`), stored hashed, and carry
+optional `scopes` (`check`) and `ttl_seconds` expiry. Revoked/expired keys stop
+authenticating at once. Only the static admin key can manage keys — a leaked
+tenant key can't mint more. Serve the admin endpoints over TLS (the create/rotate
+response carries the new key).
+
 ### Billing (Stripe)
 
 `POST /v1/billing/report` (admin) computes each tenant's billable-unit delta

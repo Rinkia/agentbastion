@@ -35,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -46,8 +47,11 @@ from .events import EventLog
 from .events import stats as log_stats
 from .firewall import Firewall
 from .gateway_ops import AlertMonitor, RateLimiter, UsageMeter
+from .keys import KeyRegistry
 from .store import build_store
 from .tools import load_policy
+
+_KEY_ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
 
 def _sha(key: str) -> str:
@@ -130,6 +134,12 @@ class ToolVerdict(BaseModel):
     reason: str
 
 
+class KeyCreate(BaseModel):
+    tenant: str
+    scopes: list[str] | None = None
+    ttl_seconds: int | None = None
+
+
 def create_app() -> FastAPI:
     log_path = os.getenv("AGENTBASTION_LOG", "agentbastion.jsonl")
     firewall = _build_firewall(log_path)
@@ -138,6 +148,7 @@ def create_app() -> FastAPI:
     judge_on = firewall.inbound.judge is not None
 
     store = build_store()  # Redis if AGENTBASTION_REDIS_URL set, else None (in-process)
+    registry = KeyRegistry(store)  # dynamic API keys (#7); shared via store when present
     limiter = RateLimiter(int(os.getenv("AGENTBASTION_RATE_LIMIT", "0")), store=store)
     alerts = AlertMonitor(
         threshold=int(os.getenv("AGENTBASTION_ALERT_THRESHOLD", "0")),
@@ -160,6 +171,12 @@ def create_app() -> FastAPI:
             tenant = auth.tenant_for(x_api_key)
             if tenant is None and auth.is_admin(x_api_key):
                 tenant = "admin"
+            if tenant is None:
+                rec = registry.resolve(x_api_key)  # dynamic key (#7)
+                if rec is not None:
+                    if "check" not in rec.get("scopes", []):
+                        raise HTTPException(403, "key lacks the 'check' scope")
+                    tenant = rec["tenant"]
             if tenant is None:
                 raise HTTPException(401, "invalid or missing X-API-Key")
         if not limiter.allow(tenant):
@@ -217,6 +234,33 @@ def create_app() -> FastAPI:
     @app.get("/v1/usage", dependencies=[Depends(require_admin)])
     def usage_endpoint() -> dict:
         return {"tenants": usage.snapshot()}
+
+    # --- API key lifecycle (#7); static admin key only ---
+    @app.post("/v1/admin/keys", dependencies=[Depends(require_admin)])
+    def create_key(body: KeyCreate) -> dict:
+        try:
+            raw, pub = registry.create(body.tenant, body.scopes, body.ttl_seconds)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"key": raw, "note": "store this key now - it is not shown again", **pub}
+
+    @app.get("/v1/admin/keys", dependencies=[Depends(require_admin)])
+    def list_keys() -> dict:
+        return {"keys": registry.list()}
+
+    @app.post("/v1/admin/keys/{key_id}/revoke", dependencies=[Depends(require_admin)])
+    def revoke_key(key_id: str) -> dict:
+        if not _KEY_ID_RE.match(key_id) or not registry.revoke(key_id):
+            raise HTTPException(404, "unknown key_id")
+        return {"revoked": key_id}
+
+    @app.post("/v1/admin/keys/{key_id}/rotate", dependencies=[Depends(require_admin)])
+    def rotate_key(key_id: str) -> dict:
+        result = registry.rotate(key_id) if _KEY_ID_RE.match(key_id) else None
+        if result is None:
+            raise HTTPException(404, "unknown key_id")
+        raw, pub = result
+        return {"key": raw, "note": "old key revoked - store this new key now", **pub}
 
     @app.post("/v1/billing/report", dependencies=[Depends(require_admin)])
     def billing_report() -> dict:
