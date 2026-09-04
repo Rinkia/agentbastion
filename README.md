@@ -93,6 +93,19 @@ Heuristics are free and offline. The judge catches subtler attempts at real
 per-request cost/latency — turn it on for sensitive routes, off for high-volume
 low-risk ones. It **fails open**: a judge outage never takes your agent down.
 
+For high-volume use, cap and cache the judge:
+
+```python
+from agentbastion import Firewall
+from agentbastion.cache import TTLCache
+fw = Firewall.with_judge(client, timeout_s=1.5, cache=TTLCache(maxsize=5000, ttl_s=300))
+```
+
+`timeout_s` bounds each judge call (falls back to heuristics on timeout); the
+cache skips the judge for repeated inputs. Async apps can use
+`await fw.acheck_input(text)` (and `acheck_output` / `acheck_tool` /
+`acheck_tool_result`) to run the guards off the event loop.
+
 ### Audit log
 
 Every decision is appended to `agentbastion.jsonl`. Summarize it:
@@ -179,6 +192,8 @@ block counts, and recent blocks, read live from the audit log.
 | Rate limiting | `AGENTBASTION_RATE_LIMIT=<per-min>` | Per-tenant fixed window; over-limit → `429`. `0` = off. |
 | Block-spike alerts | `AGENTBASTION_ALERT_RULES` (YAML), or `AGENTBASTION_ALERT_THRESHOLD`/`_WINDOW`/`_WEBHOOK` | ≥ threshold blocks per tenant in the window → dispatches to the tenant's channels (debounced). Per-tenant rules + a default; channel types: `slack`, `pagerduty`, `webhook`. See [`alert_rules.example.yaml`](alert_rules.example.yaml). |
 | Usage metering | `AGENTBASTION_USAGE=usage.json` | Durable per-tenant billable counters (input/output/tool + blocks). `GET /v1/usage` (admin). |
+| Verdict cache | `AGENTBASTION_CACHE_TTL` (s, 0=off), `AGENTBASTION_CACHE_SIZE` | LRU+TTL memoize of inbound scans so repeat inputs skip the (paid) judge. Bounded size caps memory. |
+| Judge latency budget | `AGENTBASTION_JUDGE_TIMEOUT` (s, 0=off) | Hard cap per judge call; on timeout, fall back to heuristics-only (fail-open). |
 | Metered billing | `AGENTBASTION_STRIPE_API_KEY`, `AGENTBASTION_STRIPE_METER`, `AGENTBASTION_BILLING_MAP` | `POST /v1/billing/report` (admin) reports each tenant's usage delta to Stripe. No key → dry-run that still returns the deltas. Run it on a cron. |
 | Hashed keys at rest | keys file value `sha256:<hex>` | Store hashes, not plaintext, in the keys file. Generate: `agentbastion-hash-key [KEY]`. |
 

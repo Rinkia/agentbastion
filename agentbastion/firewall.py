@@ -43,9 +43,12 @@ class Firewall:
     log: EventLog = field(default_factory=EventLog)
 
     @classmethod
-    def with_judge(cls, client, model: str = "claude-haiku-4-5", **kwargs) -> "Firewall":
-        """Build a Firewall whose inbound guard also uses the Anthropic LLM judge."""
-        inbound = InboundGuard(judge=LLMJudge(client, model=model))
+    def with_judge(cls, client, model: str = "claude-haiku-4-5", *,
+                   timeout_s: Optional[float] = None, cache=None, **kwargs) -> "Firewall":
+        """Build a Firewall whose inbound guard also uses the Anthropic LLM judge.
+        `timeout_s` caps each judge call (latency budget); `cache` (a TTLCache)
+        memoizes verdicts so repeat inputs skip the judge."""
+        inbound = InboundGuard(judge=LLMJudge(client, model=model, timeout_s=timeout_s), cache=cache)
         return cls(inbound=inbound, **kwargs)
 
     # --- inbound -----------------------------------------------------------
@@ -117,6 +120,29 @@ class Firewall:
             matches=kinds,
         )
         return redacted, verdict
+
+    # --- async wrappers ----------------------------------------------------
+    # Run the (sync, possibly judge-bound) guards off the event loop so async
+    # apps don't block. Same semantics as the sync methods.
+    async def acheck_input(self, text: str, tenant: Optional[str] = None) -> Verdict:
+        import asyncio
+
+        return await asyncio.to_thread(self.check_input, text, tenant)
+
+    async def acheck_tool_result(self, text: str, tenant: Optional[str] = None) -> Verdict:
+        import asyncio
+
+        return await asyncio.to_thread(self.check_tool_result, text, tenant)
+
+    async def acheck_tool(self, tool: str, tool_input=None, tenant: Optional[str] = None) -> Verdict:
+        import asyncio
+
+        return await asyncio.to_thread(self.check_tool, tool, tool_input, tenant)
+
+    async def acheck_output(self, text: str, tenant: Optional[str] = None) -> tuple[str, Verdict]:
+        import asyncio
+
+        return await asyncio.to_thread(self.check_output, text, tenant)
 
 
 def _inbound_reason(result: ScanResult) -> str:

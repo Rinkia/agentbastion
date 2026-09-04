@@ -96,13 +96,19 @@ def _load_auth() -> AuthStore:
 
 
 def _build_firewall(log_path: str) -> Firewall:
+    from .cache import TTLCache
+    from .inbound import InboundGuard, LLMJudge
+
     log = EventLog(log_path)
+    ttl = int(os.getenv("AGENTBASTION_CACHE_TTL", "0"))  # 0 = caching off
+    cache = TTLCache(int(os.getenv("AGENTBASTION_CACHE_SIZE", "1024")), ttl) if ttl > 0 else None
+    timeout = float(os.getenv("AGENTBASTION_JUDGE_TIMEOUT", "0")) or None  # 0 = no budget
+    judge = None
     if os.getenv("ANTHROPIC_API_KEY"):
         import anthropic
 
-        fw = Firewall.with_judge(anthropic.Anthropic(), log=log)
-    else:
-        fw = Firewall(log=log)
+        judge = LLMJudge(anthropic.Anthropic(), timeout_s=timeout)
+    fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache), log=log)
     policy_path = os.getenv("AGENTBASTION_TOOL_POLICY")
     if policy_path:
         fw.tool_policy = load_policy(policy_path)
