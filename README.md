@@ -121,6 +121,11 @@ no PII regex catches everything. Run this as one layer alongside least-privilege
 tool scoping, human approval on money movement, and real monitoring. Build like
 it will be attacked — because a security tool will be.
 
+The [threat model](docs/threat-model.md) is the honest map of what agentbastion
+stops, what it doesn't, and the fail-open/fail-closed posture of every
+component. Found a vulnerability? See [SECURITY.md](SECURITY.md). Docs index:
+[docs/](docs/README.md).
+
 Known v0 ceilings (all have an upgrade path in the code):
 - **Injection** = hand-rolled regex signatures (English, German, French, Spanish, Italian) + optional LLM judge (language-agnostic), plus pluggable `Detector`s: a model-based `HttpScannerDetector` (Llama Guard / Rebuff / your own) and a `SemanticDetector` (embedding-similarity, catches paraphrases). Pass any `.scan(text) -> (matches, severity)` object to `InboundGuard(detectors=[...])`. More signature languages welcome — see [issue #1](https://github.com/Rinkia/agentbastion/issues/1).
 - **PII** = regex for the leaks that cost money (SSN, credit card w/ Luhn, API keys, private keys, email) by default; set `AGENTBASTION_PII_BACKEND=presidio` (install `agentbastion[pii]`) for Microsoft Presidio names/addresses/locale-aware NER. Falls back to regex if Presidio isn't installed.
