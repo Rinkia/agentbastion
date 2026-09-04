@@ -1,0 +1,30 @@
+# Alert rules for the gateway. Point AGENTBASTION_ALERT_RULES at a copy.
+#
+#   export AGENTBASTION_ALERT_RULES=alert_rules.yaml
+#   agentbastion-gateway
+#
+# A block-spike fires when a tenant's blocks in `window_s` reach `threshold`
+# (debounced: one alert per window), and is dispatched to the named channels.
+# Per-tenant rules override the default. threshold <= 0 disables alerting.
+
+channels:
+  ops_slack:
+    type: slack                       # posts {"text": ...} to a Slack incoming webhook
+    url: "https://hooks.slack.com/services/REPLACE/ME"
+  pager:
+    type: pagerduty                   # PagerDuty Events API v2 trigger
+    routing_key: "REPLACE_ROUTING_KEY"
+  siem:
+    type: webhook                     # generic JSON POST of the alert object
+    url: "https://your-siem.example.com/ingest"
+
+default:
+  threshold: 5
+  window_s: 60
+  channels: [ops_slack]
+
+tenants:
+  acme:                               # a high-value tenant: tighter + paged
+    threshold: 2
+    window_s: 30
+    channels: [ops_slack, pager]

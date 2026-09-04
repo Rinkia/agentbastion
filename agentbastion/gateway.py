@@ -46,7 +46,7 @@ from .billing import build_reporter
 from .events import EventLog
 from .events import stats as log_stats
 from .firewall import Firewall
-from .gateway_ops import AlertMonitor, RateLimiter, UsageMeter
+from .gateway_ops import RateLimiter, UsageMeter, build_alert_monitor
 from .keys import KeyRegistry
 from .store import build_store
 from .tools import load_policy
@@ -150,11 +150,7 @@ def create_app() -> FastAPI:
     store = build_store()  # Redis if AGENTBASTION_REDIS_URL set, else None (in-process)
     registry = KeyRegistry(store)  # dynamic API keys (#7); shared via store when present
     limiter = RateLimiter(int(os.getenv("AGENTBASTION_RATE_LIMIT", "0")), store=store)
-    alerts = AlertMonitor(
-        threshold=int(os.getenv("AGENTBASTION_ALERT_THRESHOLD", "0")),
-        window_s=int(os.getenv("AGENTBASTION_ALERT_WINDOW", "60")),
-        webhook=os.getenv("AGENTBASTION_ALERT_WEBHOOK"),
-    )
+    alerts = build_alert_monitor()  # rules YAML if AGENTBASTION_ALERT_RULES set, else env single-rule
     usage = UsageMeter(os.getenv("AGENTBASTION_USAGE", "usage.json"), store=store)
     billing = build_reporter(usage, os.getenv("AGENTBASTION_BILLING_STATE", "billing_state.json"))
 

@@ -177,7 +177,7 @@ block counts, and recent blocks, read live from the audit log.
 | Feature | Env | Behaviour |
 |---|---|---|
 | Rate limiting | `AGENTBASTION_RATE_LIMIT=<per-min>` | Per-tenant fixed window; over-limit → `429`. `0` = off. |
-| Block-spike alerts | `AGENTBASTION_ALERT_THRESHOLD`, `AGENTBASTION_ALERT_WINDOW` (s), `AGENTBASTION_ALERT_WEBHOOK` | ≥ threshold blocks per tenant in the window → logs a warning and POSTs the alert to the webhook (debounced). |
+| Block-spike alerts | `AGENTBASTION_ALERT_RULES` (YAML), or `AGENTBASTION_ALERT_THRESHOLD`/`_WINDOW`/`_WEBHOOK` | ≥ threshold blocks per tenant in the window → dispatches to the tenant's channels (debounced). Per-tenant rules + a default; channel types: `slack`, `pagerduty`, `webhook`. See [`alert_rules.example.yaml`](alert_rules.example.yaml). |
 | Usage metering | `AGENTBASTION_USAGE=usage.json` | Durable per-tenant billable counters (input/output/tool + blocks). `GET /v1/usage` (admin). |
 | Metered billing | `AGENTBASTION_STRIPE_API_KEY`, `AGENTBASTION_STRIPE_METER`, `AGENTBASTION_BILLING_MAP` | `POST /v1/billing/report` (admin) reports each tenant's usage delta to Stripe. No key → dry-run that still returns the deltas. Run it on a cron. |
 | Hashed keys at rest | keys file value `sha256:<hex>` | Store hashes, not plaintext, in the keys file. Generate: `agentbastion-hash-key [KEY]`. |
