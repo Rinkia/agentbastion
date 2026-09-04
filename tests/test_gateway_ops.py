@@ -4,7 +4,7 @@ and hashed keys at rest."""
 from fastapi.testclient import TestClient
 
 from agentbastion.gateway import create_app
-from agentbastion.gateway_ops import AlertMonitor, RateLimiter, UsageMeter
+from agentbastion.gateway_ops import AlertMonitor, RateLimiter, Rule, UsageMeter
 
 
 # --- unit: ops classes ------------------------------------------------------
@@ -22,7 +22,7 @@ def test_rate_limiter_disabled_when_zero():
 
 def test_alert_monitor_fires_on_spike():
     fired = []
-    m = AlertMonitor(threshold=3, window_s=60, sink=fired.append)
+    m = AlertMonitor(Rule(threshold=3, window_s=60), {}, {}, sink=fired.append)
     for _ in range(2):
         m.record_block("acme", "x")
     assert not fired
