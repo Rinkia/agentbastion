@@ -140,7 +140,7 @@ def create_app() -> FastAPI:
     )
     usage = UsageMeter(os.getenv("AGENTBASTION_USAGE", "usage.json"))
 
-    app = FastAPI(title="agentbastion gateway", version="0.5.0")
+    app = FastAPI(title="agentbastion gateway", version="0.6.0")
 
     def require_tenant(x_api_key: str = Header(default="")) -> str:
         if not auth.configured:
@@ -193,6 +193,14 @@ def create_app() -> FastAPI:
         if not v.allowed:
             alerts.record_block(tenant, f"tool {body.name}: {v.reason}")
         return ToolVerdict(allowed=v.allowed, reason=v.reason)
+
+    @app.post("/v1/check/tool-result", response_model=InputVerdict)
+    def check_tool_result(body: TextIn, tenant: str = Depends(require_tenant)) -> InputVerdict:
+        v = firewall.check_tool_result(body.text, tenant=tenant)
+        usage.record(tenant, "tool_result", blocked=not v.allowed)
+        if not v.allowed:
+            alerts.record_block(tenant, f"tool_result: {v.reason}")
+        return InputVerdict(allowed=v.allowed, reason=v.reason, matches=list(v.matches))
 
     @app.get("/v1/stats", dependencies=[Depends(require_admin)])
     def stats_endpoint() -> dict:

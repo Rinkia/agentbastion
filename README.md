@@ -44,6 +44,33 @@ def my_agent(user_input: str) -> str:
 
 Full working agent on the raw Anthropic SDK (all three guards): [`examples/basic_agent.py`](examples/basic_agent.py).
 
+### Drop-in Anthropic wrapper
+
+Guard an existing Anthropic app with no other code changes:
+
+```python
+from anthropic import Anthropic
+from agentbastion import Firewall
+from agentbastion.integrations import GuardedAnthropic
+
+client = GuardedAnthropic(Anthropic(), Firewall())
+# .messages.create() now scans the last user message (raises BlockedError on an
+# injection) and redacts PII/secrets from the reply. Everything else passes through.
+```
+
+### Scanning tool results (indirect injection)
+
+Injection often arrives *inside the data a tool returns* — a poisoned RAG chunk
+or fetched web page telling the agent to ignore the user. Scan it before the
+agent sees it:
+
+```python
+result = fetch_document(url)              # untrusted data
+verdict = firewall.check_tool_result(result)
+if not verdict.allowed:
+    result = "[blocked: possible injection in tool output]"
+```
+
 ### Tool policy (`allowlist.yaml`)
 
 ```yaml
@@ -111,6 +138,7 @@ curl -s localhost:8080/v1/check/input -H "X-API-Key: $AGENTBASTION_API_KEY" \
 | POST | `/v1/check/input` | tenant | `{"text": "..."}` | `{allowed, reason, matches}` |
 | POST | `/v1/check/output` | tenant | `{"text": "..."}` | `{redacted, findings}` |
 | POST | `/v1/check/tool` | tenant | `{"name": "...", "input": {...}}` | `{allowed, reason}` |
+| POST | `/v1/check/tool-result` | tenant | `{"text": "..."}` | `{allowed, reason, matches}` |
 | GET  | `/v1/stats` | admin | — | per-tenant aggregates (JSON) |
 | GET  | `/dashboard` | public shell | — | HTML dashboard |
 
@@ -197,6 +225,16 @@ python benchmark/eval_public.py --split train
 
 This is off the CI gate on purpose — it fetches data over the network and can
 change upstream. Use it to track true catch-rate as you add signatures.
+
+**Honest benchmark.** Public datasets like `deepset` label benign roleplay and
+codegen ("act as an interviewer", "generate SQL") as *injection*, which caps
+recall for any tool that (correctly) lets them through.
+[`benchmark/honest_corpus.jsonl`](benchmark/honest_corpus.jsonl) re-labels those
+as benign and keeps only unambiguous security-injection as malicious — the
+number that reflects real catch-rate. On it, heuristics alone score **recall
+0.90, FPR 0.0** (the one miss is a Spanish attack the multilingual judge
+catches). `tests/test_honest.py` gates FPR at 0 — benign roleplay must never be
+blocked.
 
 **Measured, heuristics-only, `deepset/prompt-injections` test split (116 rows):
 recall ≈ 0.05, precision 1.0, FPR 0.0.** Read that honestly: the regex layer

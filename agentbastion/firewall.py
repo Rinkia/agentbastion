@@ -67,6 +67,23 @@ class Firewall:
         ))
         return verdict
 
+    # --- tool result (indirect / data-borne injection) --------------------
+    def check_tool_result(self, text: str, tenant: Optional[str] = None) -> Verdict:
+        """Scan the DATA a tool returns (RAG chunk, fetched page, API payload)
+        before the agent sees it. Indirect injection lives here - a poisoned
+        document telling the agent to ignore the user or exfiltrate data. Same
+        inbound scanner, distinct stage so it's attributable in the log."""
+        result: ScanResult = self.inbound.scan(text)
+        blocked = self.inbound.is_blocked(result)
+        reason = _inbound_reason(result)
+        self.log.log(Event(
+            stage="tool_result",
+            decision="block" if blocked else "allow",
+            detail=reason,
+            extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant},
+        ))
+        return Verdict(allowed=not blocked, stage="tool_result", reason=reason, matches=result.matches)
+
     # --- tool --------------------------------------------------------------
     def check_tool(self, tool: str, tool_input: Any = None, tenant: Optional[str] = None) -> Verdict:
         if self.tool_policy is None:
