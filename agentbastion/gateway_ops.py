@@ -23,10 +23,13 @@ log = logging.getLogger("agentbastion.gateway")
 
 
 class RateLimiter:
-    """Fixed-window per-tenant limiter. `per_minute <= 0` disables it."""
+    """Fixed-window per-tenant limiter. `per_minute <= 0` disables it. With a
+    shared `store` (Redis) the window is shared across gateway processes; without
+    one it is per-process (in-memory)."""
 
-    def __init__(self, per_minute: int) -> None:
+    def __init__(self, per_minute: int, store=None) -> None:
         self.limit = per_minute
+        self._store = store
         self._win: dict[str, tuple[int, int]] = {}
         self._lock = threading.Lock()
 
@@ -34,6 +37,14 @@ class RateLimiter:
         if self.limit <= 0:
             return True
         window = int(time.time() // 60)
+        if self._store is not None:
+            try:
+                key = f"ab:rl:{tenant}:{window}"
+                count = self._store.incr_window(key, 120)  # 2-window TTL
+                return count <= self.limit
+            except Exception as e:  # noqa: BLE001 - fail OPEN; a store outage must not 429 everyone
+                log.warning("rate limiter store error (%s); failing open", type(e).__name__)
+                return True
         with self._lock:
             ws, count = self._win.get(tenant, (window, 0))
             if ws != window:
@@ -88,13 +99,15 @@ class AlertMonitor:
 
 
 class UsageMeter:
-    """Durable per-tenant billable counters (checks by kind + blocks), persisted
-    write-through to a JSON file so counts survive restarts."""
+    """Durable per-tenant billable counters (checks by kind + blocks). With a
+    shared `store` (Redis) counters are shared across processes; without one they
+    are write-through to a JSON file so counts survive restarts."""
 
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, store=None) -> None:
         self.path = path
+        self._store = store
         self._lock = threading.Lock()
-        self._data = self._load()
+        self._data = {} if store is not None else self._load()
 
     def _load(self) -> dict:
         try:
@@ -104,6 +117,14 @@ class UsageMeter:
             return {}
 
     def record(self, tenant: str, kind: str, blocked: bool = False) -> None:
+        if self._store is not None:
+            try:
+                self._store.hincr(f"ab:usage:{tenant}", kind, 1)
+                if blocked:
+                    self._store.hincr(f"ab:usage:{tenant}", "blocks", 1)
+            except Exception as e:  # noqa: BLE001 - best-effort; never break the request
+                log.warning("usage store error (%s); usage not recorded for this call", type(e).__name__)
+            return
         with self._lock:
             t = self._data.setdefault(tenant, {"input": 0, "output": 0, "tool": 0, "blocks": 0})
             t[kind] = t.get(kind, 0) + 1
@@ -118,5 +139,11 @@ class UsageMeter:
         os.replace(tmp, self.path)  # atomic
 
     def snapshot(self) -> dict:
+        if self._store is not None:
+            try:
+                return self._store.scan_hashes("ab:usage:")
+            except Exception as e:  # noqa: BLE001
+                log.warning("usage snapshot store error (%s)", type(e).__name__)
+                return {}
         with self._lock:
             return json.loads(json.dumps(self._data))

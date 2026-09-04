@@ -42,6 +42,8 @@ bench = ["datasets>=2.14"]
 gateway = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
 # Stripe metered billing on /v1/usage.
 billing = ["stripe>=7.0"]
+# Shared store for multi-process gateway (rate limiting + usage).
+redis = ["redis>=5.0"]
 dev = ["pytest>=8.0", "anthropic>=1.0", "fastapi>=0.110", "httpx>=0.27"]
 
 [project.scripts]

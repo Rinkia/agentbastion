@@ -46,6 +46,7 @@ from .events import EventLog
 from .events import stats as log_stats
 from .firewall import Firewall
 from .gateway_ops import AlertMonitor, RateLimiter, UsageMeter
+from .store import build_store
 from .tools import load_policy
 
 
@@ -136,13 +137,14 @@ def create_app() -> FastAPI:
     allow_no_auth = os.getenv("AGENTBASTION_ALLOW_NO_AUTH") == "1"
     judge_on = firewall.inbound.judge is not None
 
-    limiter = RateLimiter(int(os.getenv("AGENTBASTION_RATE_LIMIT", "0")))
+    store = build_store()  # Redis if AGENTBASTION_REDIS_URL set, else None (in-process)
+    limiter = RateLimiter(int(os.getenv("AGENTBASTION_RATE_LIMIT", "0")), store=store)
     alerts = AlertMonitor(
         threshold=int(os.getenv("AGENTBASTION_ALERT_THRESHOLD", "0")),
         window_s=int(os.getenv("AGENTBASTION_ALERT_WINDOW", "60")),
         webhook=os.getenv("AGENTBASTION_ALERT_WEBHOOK"),
     )
-    usage = UsageMeter(os.getenv("AGENTBASTION_USAGE", "usage.json"))
+    usage = UsageMeter(os.getenv("AGENTBASTION_USAGE", "usage.json"), store=store)
     billing = build_reporter(usage, os.getenv("AGENTBASTION_BILLING_STATE", "billing_state.json"))
 
     app = FastAPI(title="agentbastion gateway", version="0.7.0")
@@ -175,7 +177,8 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz")
     def healthz() -> dict:
-        return {"status": "ok", "judge": judge_on, "tool_policy": firewall.tool_policy is not None}
+        return {"status": "ok", "judge": judge_on, "tool_policy": firewall.tool_policy is not None,
+                "shared_store": store is not None}
 
     @app.post("/v1/check/input", response_model=InputVerdict)
     def check_input(body: TextIn, tenant: str = Depends(require_tenant)) -> InputVerdict:
