@@ -1,0 +1,35 @@
+# Fly.io deploy for the PUBLIC agentbastion playground demo.
+# MUST live at the repo root so the Docker build context is the repo root
+# (the Dockerfile does `COPY . .` and needs pyproject.toml).
+#
+#   fly launch --copy-config --no-deploy   # from the repo root; pick an app name
+#   fly deploy
+#   fly open /playground
+#
+# Playground-only: /playground and /v1/demo/* are public (heuristics-only,
+# rate-limited, input-capped, not logged). No tenant keys, so /v1/check/* return
+# 503 - fine, the demo uses /v1/demo. Do NOT set ANTHROPIC_API_KEY or tenant
+# keys on a public demo box.
+
+app = "agentbastion-demo"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  AGENTBASTION_PLAYGROUND = "1"
+  AGENTBASTION_PLAYGROUND_RATE = "30"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
