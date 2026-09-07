@@ -404,6 +404,13 @@ _DEMO_SAMPLES = [
 
 _PLAYGROUND_HTML = """<!doctype html><html><head><meta charset="utf-8">
 <title>agentbastion playground</title><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:title" content="agentbastion - a firewall for AI agents">
+<meta property="og:description" content="Block prompt injection, guard what the agent can do, redact PII. Paste text, see the verdict.">
+<meta property="og:image" content="https://raw.githubusercontent.com/Rinkia/agentbastion/main/assets/social.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/Rinkia/agentbastion/main/assets/social.png">
+<meta name="description" content="A firewall for the AI agents companies now ship - block prompt injection, guard tool calls, redact PII.">
+
 <style>
  body{font:14px system-ui,sans-serif;margin:0;background:#0f1216;color:#e6e6e6}
  header{padding:16px 20px;border-bottom:1px solid #232833}
