@@ -6,15 +6,18 @@ rate-limited, input-capped, nothing logged — safe to expose.
 
 ## Fly.io
 
+Run from the **repo root** (not this folder) — `fly.toml` lives at the root so
+the Docker build context includes `pyproject.toml`:
+
 ```bash
-cd deploy
+cd ..                                  # repo root, where fly.toml is
 fly launch --copy-config --no-deploy   # choose an app name + region
 fly deploy
 fly open /playground
 ```
 
-`fly.toml` sets `AGENTBASTION_PLAYGROUND=1` and no tenant keys, so only the demo
-endpoints are public. Scales to zero when idle (`min_machines_running = 0`).
+The root `fly.toml` sets `AGENTBASTION_PLAYGROUND=1` and no tenant keys, so only
+the demo endpoints are public. Scales to zero when idle (`min_machines_running = 0`).
 
 ## Render (alternative)
 
