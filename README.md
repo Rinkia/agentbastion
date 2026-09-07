@@ -5,6 +5,8 @@
 [![Python](https://img.shields.io/pypi/pyversions/agentbastion)](https://pypi.org/project/agentbastion/)
 [![License](https://img.shields.io/badge/license-MIT%20%2B%20BSL--1.1-blue)](LICENSING.md)
 
+![agentbastion blocking a prompt injection](assets/demo.gif)
+
 A checkpoint between the AI agent your business ships and the world. Businesses
 now deploy chatbots, copilots, and agents wired to their data and tools — and
 almost nobody secures that new surface. This does.
