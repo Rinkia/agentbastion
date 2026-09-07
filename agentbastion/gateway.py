@@ -38,7 +38,7 @@ import os
 import re
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -317,16 +317,27 @@ def create_app() -> FastAPI:
         # Heuristics-only, no judge (no API cost -> no cost-amplification abuse),
         # no logging (public input never touches the tenant audit trail).
         demo_fw = Firewall(inbound=_InboundGuard(), log=EventLog(None))
+        # Rate limit PER CLIENT IP, not one global bucket - otherwise a busy demo
+        # (e.g. an HN front page) shares a single 30/min bucket and everyone 429s.
         demo_limiter = RateLimiter(int(os.getenv("AGENTBASTION_PLAYGROUND_RATE", "30")))
         _MAX_DEMO_CHARS = 4000
+
+        def _demo_bucket(request: Request) -> str:
+            # Behind Fly's proxy the socket peer is the proxy; the real client is
+            # in Fly-Client-IP, else the first X-Forwarded-For hop, else the peer.
+            ip = request.headers.get("fly-client-ip")
+            if not ip:
+                xff = request.headers.get("x-forwarded-for", "")
+                ip = xff.split(",")[0].strip() if xff else (request.client.host if request.client else "unknown")
+            return "demo:" + ip
 
         @app.get("/playground", response_class=HTMLResponse)
         def playground_page() -> str:
             return _PLAYGROUND_HTML
 
         @app.post("/v1/demo/check", response_model=InputVerdict)
-        def demo_check(body: TextIn) -> InputVerdict:
-            if not demo_limiter.allow("demo"):
+        def demo_check(body: TextIn, request: Request) -> InputVerdict:
+            if not demo_limiter.allow(_demo_bucket(request)):
                 raise HTTPException(429, "demo rate limit exceeded")
             if len(body.text) > _MAX_DEMO_CHARS:
                 raise HTTPException(413, f"demo input capped at {_MAX_DEMO_CHARS} chars")
@@ -334,8 +345,8 @@ def create_app() -> FastAPI:
             return InputVerdict(allowed=v.allowed, reason=v.reason, matches=list(v.matches))
 
         @app.get("/v1/demo/replay")
-        def demo_replay() -> dict:
-            if not demo_limiter.allow("demo"):
+        def demo_replay(request: Request) -> dict:
+            if not demo_limiter.allow(_demo_bucket(request)):
                 raise HTTPException(429, "demo rate limit exceeded")
             results = []
             for text, label in _DEMO_SAMPLES:
