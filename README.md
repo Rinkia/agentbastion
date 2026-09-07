@@ -7,6 +7,8 @@
 
 ![agentbastion blocking a prompt injection](assets/demo.gif)
 
+**[▶ Try the live demo](https://agentbastion-demo.fly.dev/playground)** — paste text, see the verdict; "Replay attacks" shows what gets blocked.
+
 A checkpoint between the AI agent your business ships and the world. Businesses
 now deploy chatbots, copilots, and agents wired to their data and tools — and
 almost nobody secures that new surface. This does.
