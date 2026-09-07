@@ -50,6 +50,18 @@ def test_demo_rate_limited(tmp_path, monkeypatch):
     assert client.post("/v1/demo/check", json={"text": "a"}).status_code == 429
 
 
+def test_demo_rate_limit_is_per_ip(tmp_path, monkeypatch):
+    client = _app(tmp_path, monkeypatch, playground=True, rate="2")
+    ip_a = {"Fly-Client-IP": "1.1.1.1"}
+    ip_b = {"Fly-Client-IP": "2.2.2.2"}
+    assert client.post("/v1/demo/check", json={"text": "a"}, headers=ip_a).status_code == 200
+    assert client.post("/v1/demo/check", json={"text": "a"}, headers=ip_a).status_code == 200
+    assert client.post("/v1/demo/check", json={"text": "a"}, headers=ip_a).status_code == 429  # A exhausted
+    # a different client IP has its own fresh bucket
+    assert client.post("/v1/demo/check", json={"text": "a"}, headers=ip_b).status_code == 200
+    assert client.post("/v1/demo/check", json={"text": "a"}, headers=ip_b).status_code == 200
+
+
 def test_demo_check_not_logged(tmp_path, monkeypatch):
     log = tmp_path / "l.jsonl"
     client = _app(tmp_path, monkeypatch, playground=True)
