@@ -30,6 +30,12 @@ almost nobody secures that new surface. This does.
 Ships as a drop-in SDK: your data never leaves your box. A hosted gateway with
 dashboards and alerts is the paid tier later.
 
+> **Attack it first with [agentprobe](https://github.com/Rinkia/agentprobe).**
+> agentbastion is the shield; [agentprobe](https://github.com/Rinkia/agentprobe)
+> is the sword — a pentest tool that fires indirect prompt-injection payloads at
+> your agent and reports which land. Same corpus taxonomy, opposite direction:
+> scan with agentprobe → find holes → plug them here → re-scan green.
+
 ## Install
 
 ```bash
