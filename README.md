@@ -36,6 +36,13 @@ dashboards and alerts is the paid tier later.
 > your agent and reports which land. Same corpus taxonomy, opposite direction:
 > scan with bastionprobe → find holes → plug them here → re-scan green.
 
+Part of the **bastion trilogy** — prevent (agentbastion), attack
+([bastionprobe](https://github.com/Rinkia/bastionprobe)), investigate
+([bastiontrace](https://github.com/Rinkia/bastiontrace)) — all sharing one
+injection corpus, [bastioncorpus](https://github.com/Rinkia/bastioncorpus).
+Since **v0.9.0** the `SemanticDetector`'s attack-intent templates are sourced
+from bastioncorpus (built-in intents remain as fallback).
+
 ## Install
 
 ```bash
