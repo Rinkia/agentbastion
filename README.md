@@ -331,10 +331,17 @@ codegen ("act as an interviewer", "generate SQL") as *injection*, which caps
 recall for any tool that (correctly) lets them through.
 [`benchmark/honest_corpus.jsonl`](benchmark/honest_corpus.jsonl) re-labels those
 as benign and keeps only unambiguous security-injection as malicious — the
-number that reflects real catch-rate. On it, heuristics alone score **recall
-0.90, FPR 0.0** (the one miss is a Spanish attack the multilingual judge
-catches). `tests/test_honest.py` gates FPR at 0 — benign roleplay must never be
-blocked.
+number that reflects real catch-rate. On it, heuristics alone now score **recall
+1.0, FPR 0.0** (the earlier Spanish miss is covered by the multilingual `es_`
+signatures). `tests/test_honest.py` gates FPR at 0 — benign roleplay must never
+be blocked.
+
+The self-authored `corpus.jsonl` now also carries the **2026 attack families**
+(CoT-forgery / reasoning-mimicry, compaction-summary injection, repo-doc /
+legal-filing / memory-poisoning); heuristics score recall 1.0 / FPR 0.0 on it too
+after the reasoning-mimicry + policy-override signatures. These small corpora prove
+coverage of attack *shapes*, not real-world catch-rate — the `deepset` numbers
+below are the honest field figure.
 
 **Measured, heuristics-only, `deepset/prompt-injections` test split (116 rows):
 recall ≈ 0.05, precision 1.0, FPR 0.0.** Read that honestly: the regex layer

@@ -41,6 +41,8 @@ _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
     ("ignore_previous", re.compile(r"\bignore\s+(?:all\s+|the\s+)?(?:previous|prior|above)\b.{0,20}\binstruction", re.I), 5),
     ("ignore_your_rules", re.compile(r"\bignore\b.{0,20}\b(?:your\s+)?(?:guidelines?|rules?|safety|instructions?|restrictions?|filters?|polic(?:y|ies))\b", re.I), 4),
     ("disregard_above", re.compile(r"\bdisregard\s+(?:everything\s+|the\s+)?above\b", re.I), 4),
+    ("disregard_policy", re.compile(r"\bdisregard\b.{0,30}\b(?:your\s+|the\s+|operator'?s?\s+)?(?:confidentiality\s+)?(?:polic(?:y|ies)|rules?|guidelines?|restrictions?|instructions?)\b", re.I), 4),
+    ("skip_safety", re.compile(r"\bskip\b.{0,25}\b(?:all\s+)?(?:safety|security)\s+(?:checks?|confirmations?|protocols?|guardrails?|reviews?)\b", re.I), 4),
     ("forget_instructions", re.compile(r"\bforget\s+(?:all\s+|your\s+)?(?:previous\s+)?instruction", re.I), 5),
     ("new_instructions", re.compile(r"\bnew\s+(?:instructions?|directives?|rules?|orders?|task)\b\s*:?", re.I), 4),
     ("supersede_prior", re.compile(r"\bsupersede(?:s|d)?\b.{0,20}\b(?:all\s+)?(?:prior|previous|your|earlier)\b", re.I), 4),
