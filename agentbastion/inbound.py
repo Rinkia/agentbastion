@@ -64,6 +64,23 @@ _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
     ("delimiter_marker", re.compile(r"(?:#{2,}\s*end of (?:user )?input|<\|im_(?:start|end)\|>|<<SYS>>|\[/?INST\])", re.I), 4),
     # --- obfuscation ---
     ("obfuscation_decode", re.compile(r"\b(?:decode|base64|rot-?13|from\s+hex|reverse the (?:string|text))\b.{0,60}\b(?:follow|execute|run|do (?:exactly )?what|obey|comply)\b", re.I), 4),
+    # --- reasoning-style mimicry / role-confusion (CoT forgery, BASTION_INTEL A2) ---
+    # Text posing as the model's OWN reasoning to grant itself permission. Narrow:
+    # a forged reasoning frame AND a bypass/exemption payload nearby, so benign
+    # "here's my reasoning..." / "let me think" never fire. Cross-lingual variants
+    # generalize via the corpus-fed SemanticDetector, not here.
+    ("cot_forgery_tag", re.compile(
+        r"<\s*(?:thinking|reasoning|thought|scratchpad|inner[_ ]?monologue)\s*>"
+        r".{0,300}?\b(?:ignore|disregard|bypass|exempt|without\s+restriction|"
+        r"content\s+polic|(?:not|no longer)\s+apply)\b", re.I | re.S), 4),
+    ("forged_reasoning_selfauth", re.compile(
+        r"\b(?:as (?:the|an) assistant|reasoning trace|assistant reasoning|"
+        r"internal monologue|i(?:'ve| have) (?:already )?(?:reasoned|determined|"
+        r"concluded|decided|verified))\b.{0,90}?"
+        r"\b(?:exempt|not\s+(?:meant|apply)|no longer apply|do(?:n'?t| not)\s+apply|"
+        r"without\s+(?:the\s+)?restrictions?|bypass|disregard|ignore the (?:content )?polic|"
+        r"(?:safety|content)\s+(?:guidelines?|rules?|polic\w*)\s+(?:were|are|do)\s+not)\b",
+        re.I | re.S), 4),
     # --- indirect / data-borne injection ---
     ("addresses_the_bot", re.compile(r"\b(?:ai assistant|to the (?:bot|assistant|ai|model)|note to the bot|assistant reading this|when you (?:process|read|see) this)\b", re.I), 3),
     ("exfil_action", re.compile(r"\b(?:email|send|forward|exfiltrate|leak|upload|post|transmit|reveal|expose|disclose|dump)\b.{0,45}\b(?:customer\s+(?:list|data|records)|order\s+data|credentials?|api\s+keys?|passwords?|database|internal\s+config|externally|to\s+\S+@)\b", re.I), 4),
