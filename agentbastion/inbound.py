@@ -121,6 +121,33 @@ _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
     ("it_new_instructions", re.compile(r"\bnuove\s+istruzioni?\s*:?", re.I), 4),
     ("it_reveal_system_prompt", re.compile(r"\b(?:rivela|mostra|mostrami|stampa|ripeti|dimmi)\b.{0,40}\b(?:prompt\s+di\s+sistema|istruzioni?\s+di\s+sistema|(?:le\s+tue|le\s+sue)\s+istruzioni?)\b", re.I), 5),
     ("it_no_restrictions", re.compile(r"\b(?:ora sei|sei ora|d'ora in poi|da ora)\b.{0,45}\b(?:senza\s+(?:restrizioni?|regole|filtri?|limiti?)|nessuna\s+(?:regola|restrizione))\b", re.I), 4),
+    # === Portuguese (pt) - issue #1. Romance lang, adjective after noun.
+    # === "ignore suas instruções anteriores" must fire; "ignore meu e-mail" must NOT.
+    # === Same narrow-pattern discipline: must not fire on benign Portuguese business
+    # === text ("ignore minha e-mail anterior", "esqueça o e-mail antigo").
+    # === "Ignorar" (infinitive) is also a common attack form.
+    ("pt_ignore_previous", re.compile(
+        r"\b(?:ignore|ignora|ignorar)\s+(?:todas?|suas?|minhas?|meus?)?\s*(?:instru(?:ções?|ções))\b.{0,15}"
+        r"\b(?:anteriores?|previas?|antigas?)\b", re.I), 5),
+    ("pt_ignore_rules", re.compile(
+        r"\b(?:ignore|ignora|ignorar)\s+(?:suas?|seus?|minhas?|meus?)?\s*(?:regras?|diretrizes?|instru(?:ções?|ções)|normas?|políticas?)\b",
+        re.I), 4),
+    ("pt_forget_instructions", re.compile(r"\b(?:esquece(?:r)?|esquec(?:e|am)|apaga(?:r)?)\b.{0,25}\b(?:tudo|todas?\s+as\s+instru(?:ções?|ções)|instru(?:ções?|ções)|o\s+que\s+você\s+aprendeu)\b", re.I), 5),
+    ("pt_new_instructions", re.compile(r"\bnovas?\s+instru(?:ções?|ções)\s*:?", re.I), 4),
+    ("pt_reveal_system_prompt", re.compile(
+        r"\b(?:revel(?:e|em)|mostre|mostra|imprima|repete|diga|dê|dê-me|me\s+mostre)\b.{0,40}"
+        r"\b(?:prompt\s+do\s+sistema|instru(?:ções?|ções)\s+do\s+sistema|"
+        r"(?:suas?|seus?|minhas?|meus?)\s+instru(?:ções?|ções)|"
+        r"instru(?:ções?|ções)\s+iniciais?|configura(?:ções?|ções)\s+do\s+sistema)\b", re.I), 5),
+    ("pt_no_restrictions", re.compile(
+        r"\b(?:agora (?:és?|sou|você é)|a partir de agora|daqui em diante)\b.{0,45}"
+        r"\b(?:sem\s+(?:restri(?:ções?|ções)|regras?|filtros?|limites?)|"
+        r"com\s+nenhuma\s+(?:restrição|regra|filtro|limite)|"
+        r"pode\s+fazer\s+tudo)\b", re.I), 4),
+    # === Portuguese instruction override (ignore policies, new directives) ===
+    ("pt_override_policy", re.compile(
+        r"\bignore\s+(?:as\s+|suas\s+)?(?:políticas?\s+de\s+segurança|rules?|diretrizes?|limitações?)\b.{0,30}"
+        r"\b(?:responda\s+com|ignore\s+e\s+responda|comunique|revele|envie)\b", re.I), 4),
 ]
 
 
