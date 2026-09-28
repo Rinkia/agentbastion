@@ -50,7 +50,6 @@ from .firewall import Firewall
 from .gateway_ops import RateLimiter, UsageMeter, build_alert_monitor
 from .keys import KeyRegistry
 from .store import build_store
-from .tools import load_policy
 
 _KEY_ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
@@ -127,8 +126,8 @@ def _build_firewall(log_path: str) -> Firewall:
     fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache, detectors=detectors),
                   outbound=redactor, log=log)
     policy_path = os.getenv("AGENTBASTION_TOOL_POLICY")
-    if policy_path:
-        fw.tool_policy = load_policy(policy_path)
+    if policy_path:  # tool policy + detector modes; a bad file fails startup, loudly
+        fw = fw.with_policy(policy_path)
     return fw
 
 

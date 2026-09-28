@@ -169,3 +169,16 @@ def test_legacy_loader_on_detectors_only_v2_allows_every_tool(tmp_path):
 def test_legacy_loader_validates_v2_files(tmp_path):
     with pytest.raises(PolicyError, match="detecters"):
         load_policy(_write(tmp_path, "policy_version: 2\ndetecters: {}\n"))
+
+
+def test_legacy_loader_warns_that_v2_detector_modes_are_not_applied(tmp_path):
+    # Reproduction path #1: `fw.tool_policy = load_policy(path)` can only carry the tool
+    # policy, so a kill switch in the file would be dropped. It must not be silent.
+    path = _write(tmp_path, "policy_version: 2\ndetectors:\n  bastion.exfil_action: off\n")
+    with pytest.warns(UserWarning, match="Firewall.from_policy"):
+        load_policy(path)
+
+
+def test_legacy_loader_is_quiet_for_v2_without_detectors(tmp_path, recwarn):
+    load_policy(_write(tmp_path, "policy_version: 2\ndefault: deny\n"))
+    assert not [w for w in recwarn if issubclass(w.category, UserWarning)]

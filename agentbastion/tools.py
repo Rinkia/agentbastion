@@ -106,8 +106,15 @@ def load_policy(path: str | Path) -> ToolPolicy:
     ToolPolicy (equivalent to no tool policy). Use load_policy_v2 for detector modes."""
     data = _read_mapping(path)
     if _version(data) == 2:
-        tool_policy = _parse_v2(data).tool_policy
-        return tool_policy if tool_policy is not None else ToolPolicy(default="allow")
+        policy = _parse_v2(data)
+        if policy.detector_modes:
+            warnings.warn(
+                "load_policy() returns the tool policy only; this file's detector modes are "
+                "NOT applied. Use Firewall.from_policy(path) (or fw.with_policy(path))",
+                UserWarning,
+                stacklevel=2,
+            )
+        return policy.tool_policy if policy.tool_policy is not None else ToolPolicy(default="allow")
     if "detectors" in data:
         warnings.warn(
             "`detectors:` is ignored without `policy_version: 2`; add it to enable detector modes",

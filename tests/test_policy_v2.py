@@ -89,3 +89,61 @@ def test_gateway_honors_kill_switch(kill_switch_policy: Path, tmp_path: Path, mo
 
     assert fw.check_input(_payload("ex-001")).allowed is True
     assert fw.check_input(UNRELATED_INJECTION).allowed is False
+
+
+# --- Firewall.from_policy / with_policy -------------------------------------
+
+class _FakeJudge:
+    def judge(self, text: str) -> tuple[bool, str]:
+        return False, "fake"
+
+
+def test_from_policy_passes_firewall_kwargs(kill_switch_policy: Path):
+    from agentbastion.events import EventLog
+
+    log = EventLog(None)
+    assert Firewall.from_policy(kill_switch_policy, log=log).log is log
+
+
+def test_with_policy_returns_a_new_firewall(kill_switch_policy: Path):
+    original = Firewall()
+    configured = original.with_policy(kill_switch_policy)
+    assert configured is not original
+    assert original.check_input(_payload("ex-001")).allowed is False  # original untouched
+    assert configured.check_input(_payload("ex-001")).allowed is True
+
+
+def test_with_policy_keeps_the_existing_guard_setup(kill_switch_policy: Path):
+    from agentbastion.cache import TTLCache
+    from agentbastion.inbound import InboundGuard
+
+    judge, cache = _FakeJudge(), TTLCache(8, 60)
+    fw = Firewall(inbound=InboundGuard(judge=judge, cache=cache)).with_policy(kill_switch_policy)
+    assert fw.inbound.judge is judge and fw.inbound.cache is cache
+
+
+def test_detectors_only_policy_installs_no_tool_policy(tmp_path: Path):
+    path = tmp_path / "policy.yaml"
+    path.write_text("policy_version: 2\ndetectors:\n  bastion.exfil_action: off\n", encoding="utf-8")
+    fw = Firewall.from_policy(path)
+    assert fw.tool_policy is None
+    assert fw.check_tool("send_email").allowed is True  # no tool policy, as before
+
+
+def test_v1_policy_through_from_policy_matches_legacy(tmp_path: Path):
+    from agentbastion.tools import load_policy
+
+    path = tmp_path / "policy.yaml"
+    path.write_text("default: deny\nallow: [read_file]\n", encoding="utf-8")
+    fw = Firewall.from_policy(path)
+    legacy = load_policy(path)
+    assert (fw.tool_policy.default, fw.tool_policy.allow) == (legacy.default, legacy.allow)
+
+
+def test_typo_in_kill_switch_fails_at_build_time(tmp_path: Path):
+    from agentbastion.tools import PolicyError
+
+    path = tmp_path / "policy.yaml"
+    path.write_text("policy_version: 2\ndetectors:\n  bastion.exfil_acton: off\n", encoding="utf-8")
+    with pytest.raises(PolicyError, match="did you mean 'bastion.exfil_action'"):
+        Firewall.from_policy(path)

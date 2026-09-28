@@ -10,14 +10,15 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from .events import Event, EventLog
 from .inbound import InboundGuard, LLMJudge, ScanResult
 from .outbound import PiiRedactor
-from .tools import ToolDecision, ToolPolicy
+from .tools import ToolDecision, ToolPolicy, load_policy_v2
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,24 @@ class Firewall:
         memoizes verdicts so repeat inputs skip the judge."""
         inbound = InboundGuard(judge=LLMJudge(client, model=model, timeout_s=timeout_s), cache=cache)
         return cls(inbound=inbound, **kwargs)
+
+    @classmethod
+    def from_policy(cls, path: str | Path, **kwargs) -> "Firewall":
+        """Build a Firewall from a policy file (v1 or policy_version 2): its tool
+        policy plus its detector modes (the kill switch). Other Firewall fields can
+        be passed as kwargs, e.g. `inbound=InboundGuard(judge=...)`, `log=...`."""
+        return cls(**kwargs).with_policy(path)
+
+    def with_policy(self, path: str | Path) -> "Firewall":
+        """A new Firewall with this policy applied; self is left unchanged. Detector
+        modes are merged into a copy of the inbound guard, which keeps its judge,
+        cache and detectors and re-validates every mode ID (unknown IDs raise
+        PolicyError here, at build time, never at request time)."""
+        policy = load_policy_v2(path)
+        inbound = self.inbound
+        if policy.detector_modes:
+            inbound = replace(inbound, modes={**(inbound.modes or {}), **policy.detector_modes})
+        return replace(self, inbound=inbound, tool_policy=policy.tool_policy)
 
     # --- inbound -----------------------------------------------------------
     def check_input(self, text: str, tenant: Optional[str] = None) -> Verdict:
