@@ -15,14 +15,17 @@ The judge below already shows the model-based path.
 from __future__ import annotations
 
 import concurrent.futures as _cf
+import difflib
 import hashlib
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Optional, Protocol
+from typing import Mapping, Optional, Protocol
 
+from . import registry
 from .cache import TTLCache
-from .registry import BUILTIN_NAMESPACE, CUSTOM_NAMESPACE
+from .registry import BUILTIN_NAMESPACE, CUSTOM_NAMESPACE, MODES
+from .tools import PolicyError
 
 log = logging.getLogger("agentbastion.inbound")
 
@@ -155,6 +158,9 @@ class ScanResult:
     max_severity: int = 0
     judge_flagged: bool = False
     judge_reason: str = ""
+    # Hits from detectors in shadow mode: (detector ID, severity or None for the judge).
+    # Reported only; they never count toward the verdict.
+    shadow_hits: tuple[tuple[str, Optional[int]], ...] = ()
 
     @property
     def clean(self) -> bool:
@@ -169,20 +175,78 @@ class Detector(Protocol):
     def scan(self, text: str) -> tuple[tuple[str, ...], int]: ...
 
 
-class HeuristicDetector:
-    """Offline regex signatures. No network, no cost."""
+def _validate_modes(modes: Mapping[str, str], known: set[str]) -> None:
+    """Every mode must name a detector this guard knows (decision 2A: a typo'd kill
+    switch must fail loudly, never silently do nothing)."""
+    for det_id, mode in modes.items():
+        if mode not in MODES:
+            raise PolicyError(f"detector {det_id!r}: mode {mode!r} is not one of off | shadow | enforce")
+        if det_id in known:
+            continue
+        close = difflib.get_close_matches(det_id, sorted(known), n=1)
+        hint = f"; did you mean {close[0]!r}?" if close else ""
+        raise PolicyError(
+            f"unknown detector {det_id!r}{hint} (agentbastion {_installed_version()} knows "
+            f"{len(known)} detectors). If it comes from a newer agentbastion, upgrade or remove the line"
+        )
 
-    def __init__(self, signatures=_SIGNATURES) -> None:
+
+def _installed_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("agentbastion")
+    except Exception:  # noqa: BLE001 - only used to word an error message
+        return "unknown"
+
+
+def _effective_mode(det_id: str, modes: Mapping[str, str]) -> str:
+    """Policy override if any, else the registry default. Unregistered IDs
+    (custom.* signatures, plugins) default to enforce, i.e. today's behavior."""
+    if det_id in modes:
+        return modes[det_id]
+    spec = registry.DETECTORS.get(det_id)
+    return spec.default_mode if spec is not None else "enforce"
+
+
+class HeuristicDetector:
+    """Offline regex signatures. No network, no cost.
+
+    Each signature runs in its effective mode (see _effective_mode), resolved once
+    at construction: `off` skips it, `shadow` reports it via scan_detailed() without
+    counting it, `enforce` is today's behavior. scan() keeps the public Detector
+    protocol and returns enforced hits only."""
+
+    def __init__(self, signatures=_SIGNATURES, modes: Optional[Mapping[str, str]] = None) -> None:
         self._signatures = signatures
+        self._modes = dict(modes or {})
+        self._ids = tuple(signature_id(sig) for sig in signatures)  # raises on a name collision
+        self._resolved = tuple(_effective_mode(det_id, self._modes) for det_id in self._ids)
+
+    @property
+    def ids(self) -> frozenset[str]:
+        return frozenset(self._ids)
+
+    def with_modes(self, modes: Mapping[str, str]) -> "HeuristicDetector":
+        return HeuristicDetector(self._signatures, {**self._modes, **modes})
 
     def scan(self, text: str) -> tuple[tuple[str, ...], int]:
+        matches, max_sev, _ = self.scan_detailed(text)
+        return matches, max_sev
+
+    def scan_detailed(self, text: str) -> tuple[tuple[str, ...], int, tuple[tuple[str, int], ...]]:
         hits: list[str] = []
+        shadow: list[tuple[str, int]] = []
         max_sev = 0
-        for name, pattern, severity in self._signatures:
-            if pattern.search(text):
+        for (name, pattern, severity), det_id, mode in zip(self._signatures, self._ids, self._resolved):
+            if mode == "off" or not pattern.search(text):
+                continue
+            if mode == "shadow":
+                shadow.append((det_id, severity))
+            else:
                 hits.append(name)
                 max_sev = max(max_sev, severity)
-        return tuple(hits), max_sev
+        return tuple(hits), max_sev, tuple(shadow)
 
 
 class HttpScannerDetector:
@@ -195,6 +259,8 @@ class HttpScannerDetector:
     but never breaks the request. The endpoint URL is operator config, not request
     input, so there's no attacker-controlled SSRF here.
     """
+
+    detector_id = registry.MODEL_SCANNER_ID  # fixed; `label` is display-only
 
     def __init__(self, url: str, threshold: float = 0.5, label: str = "model_scanner",
                  timeout_s: float = 2.0, severity: int = 5) -> None:
@@ -295,6 +361,22 @@ class InboundGuard:
     block_threshold: int = 4  # heuristic severity at/above this => block
     cache: Optional[TTLCache] = None  # memoize verdicts (keyed by sha256(text))
     detectors: list = field(default_factory=list)  # extra Detectors (e.g. model-based, #3)
+    # Detector modes {detector ID: off | shadow | enforce}, e.g. from a policy_version 2
+    # file. Fixed for the guard's lifetime, so the verdict cache stays valid.
+    modes: Optional[Mapping[str, str]] = None
+
+    def __post_init__(self) -> None:
+        self._modes: dict[str, str] = dict(self.modes or {})
+        if self._modes:
+            _validate_modes(self._modes, self._known_ids())
+            if hasattr(self.heuristics, "with_modes"):
+                self.heuristics = self.heuristics.with_modes(self._modes)
+
+    def _known_ids(self) -> set[str]:
+        """Every ID a mode may name: all registered detectors, this guard's custom
+        signatures, and plugins that expose a detector_id (decision 3B)."""
+        plugin_ids = {getattr(det, "detector_id", None) for det in self.detectors}
+        return set(registry.DETECTORS) | set(getattr(self.heuristics, "ids", ())) | (plugin_ids - {None})
 
     def scan(self, text: str) -> ScanResult:
         key = None
@@ -303,19 +385,36 @@ class InboundGuard:
             hit = self.cache.get(key)
             if hit is not None:
                 return hit
-        matches, max_sev = self.heuristics.scan(text)
+        if hasattr(self.heuristics, "scan_detailed"):
+            matches, max_sev, heuristic_shadow = self.heuristics.scan_detailed(text)
+        else:  # a heuristics object implementing only the public Detector protocol
+            (matches, max_sev), heuristic_shadow = self.heuristics.scan(text), ()
+        shadow = list(heuristic_shadow)
         for det in self.detectors:  # additional detectors merge into the result
+            det_id = getattr(det, "detector_id", None)
+            mode = _effective_mode(det_id, self._modes) if det_id else "enforce"
+            if mode == "off":
+                continue
             m, s = det.scan(text)
+            if mode == "shadow":
+                if m:
+                    shadow.append((det_id, s))
+                continue
             matches = matches + tuple(x for x in m if x not in matches)
             max_sev = max(max_sev, s)
         judge_flagged, judge_reason = False, ""
         if self.judge is not None:
-            judge_flagged, judge_reason = self.judge.judge(text)
+            judge_mode = _effective_mode(registry.JUDGE_ID, self._modes)
+            if judge_mode == "enforce":
+                judge_flagged, judge_reason = self.judge.judge(text)
+            elif judge_mode == "shadow" and self.judge.judge(text)[0]:
+                shadow.append((registry.JUDGE_ID, None))
         result = ScanResult(
             matches=matches,
             max_severity=max_sev,
             judge_flagged=judge_flagged,
             judge_reason=judge_reason,
+            shadow_hits=tuple(shadow),
         )
         if self.cache is not None and key is not None:
             self.cache.set(key, result)

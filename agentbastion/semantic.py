@@ -24,6 +24,8 @@ import logging
 from math import sqrt
 from typing import Callable, Optional, Sequence
 
+from .registry import SEMANTIC_ID
+
 log = logging.getLogger("agentbastion.semantic")
 
 EmbedFn = Callable[[Sequence[str]], Sequence[Sequence[float]]]
@@ -68,6 +70,8 @@ def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 class SemanticDetector:
+    detector_id = SEMANTIC_ID  # fixed; `label` is display-only
+
     def __init__(self, embed_fn: EmbedFn, templates: Optional[Sequence[str]] = None,
                  threshold: float = 0.75, label: str = "semantic", severity: int = 5) -> None:
         self._embed = embed_fn
