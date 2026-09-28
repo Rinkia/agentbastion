@@ -53,22 +53,7 @@ class Firewall:
 
     # --- inbound -----------------------------------------------------------
     def check_input(self, text: str, tenant: Optional[str] = None) -> Verdict:
-        result: ScanResult = self.inbound.scan(text)
-        blocked = self.inbound.is_blocked(result)
-        reason = _inbound_reason(result)
-        verdict = Verdict(
-            allowed=not blocked,
-            stage="inbound",
-            reason=reason,
-            matches=result.matches,
-        )
-        self.log.log(Event(
-            stage="inbound",
-            decision="block" if blocked else "allow",
-            detail=reason,
-            extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant},
-        ))
-        return verdict
+        return self._scan_stage(text, "inbound", tenant)
 
     # --- tool result (indirect / data-borne injection) --------------------
     def check_tool_result(self, text: str, tenant: Optional[str] = None) -> Verdict:
@@ -76,16 +61,21 @@ class Firewall:
         before the agent sees it. Indirect injection lives here - a poisoned
         document telling the agent to ignore the user or exfiltrate data. Same
         inbound scanner, distinct stage so it's attributable in the log."""
+        return self._scan_stage(text, "tool_result", tenant)
+
+    def _scan_stage(self, text: str, stage: str, tenant: Optional[str]) -> Verdict:
+        """Shared inbound pipeline for every text-scanning stage: scan, decide,
+        audit-log, return the Verdict. `stage` only labels the log and verdict."""
         result: ScanResult = self.inbound.scan(text)
         blocked = self.inbound.is_blocked(result)
         reason = _inbound_reason(result)
         self.log.log(Event(
-            stage="tool_result",
+            stage=stage,
             decision="block" if blocked else "allow",
             detail=reason,
             extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant},
         ))
-        return Verdict(allowed=not blocked, stage="tool_result", reason=reason, matches=result.matches)
+        return Verdict(allowed=not blocked, stage=stage, reason=reason, matches=result.matches)
 
     # --- tool --------------------------------------------------------------
     def check_tool(self, tool: str, tool_input: Any = None, tenant: Optional[str] = None) -> Verdict:
