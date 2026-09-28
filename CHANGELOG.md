@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0 (2026-09-28): detector modes, kill switch, policy v2
+
+Final release of 0.12.0rc1, with no code changes since the rc. Everything below
+(0.12.0rc1) applies. Highlights: per-detector `off | shadow | enforce` modes, the
+policy-file kill switch (`policy_version: 2`, load with `Firewall.from_policy`),
+shadow reporting on `Verdict` and in the audit log, and the first shadow detector,
+`bastion.memory_persistence` (due for promotion by 0.13.0).
+
 ## 0.12.0rc1 (2026-09-28): detector modes, kill switch, policy v2
 
 Release candidate. Install with `pip install --pre agentbastion` or pin `agentbastion==0.12.0rc1`.
