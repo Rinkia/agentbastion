@@ -9,10 +9,10 @@ Defense in depth, not a silver bullet. See README.
 """
 
 from .firewall import Firewall, guard, Verdict, BlockedError
-from .tools import ToolPolicy, ToolBlocked, load_policy
+from .tools import PolicyError, PolicyV2, ToolPolicy, ToolBlocked, load_policy, load_policy_v2
 from .events import Event, EventLog, dashboard
 
-__version__ = "0.11.0"
+__version__ = "0.12.0rc1"
 
 __all__ = [
     "Firewall",
@@ -22,6 +22,9 @@ __all__ = [
     "ToolPolicy",
     "ToolBlocked",
     "load_policy",
+    "load_policy_v2",
+    "PolicyV2",
+    "PolicyError",
     "Event",
     "EventLog",
     "dashboard",

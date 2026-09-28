@@ -9,14 +9,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import hashlib
+from dataclasses import dataclass, field, replace
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from .events import Event, EventLog
 from .inbound import InboundGuard, LLMJudge, ScanResult
 from .outbound import PiiRedactor
-from .tools import ToolDecision, ToolPolicy
+from .tools import ToolDecision, ToolPolicy, load_policy_v2
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,8 @@ class Verdict:
     stage: str
     reason: str
     matches: tuple[str, ...] = ()
+    shadow_hits: tuple[str, ...] = ()  # IDs of shadow-mode detectors that fired (never block)
+    would_flip: bool = False  # allowed, but would have been blocked had they enforced
 
 
 class BlockedError(Exception):
@@ -51,24 +55,27 @@ class Firewall:
         inbound = InboundGuard(judge=LLMJudge(client, model=model, timeout_s=timeout_s), cache=cache)
         return cls(inbound=inbound, **kwargs)
 
+    @classmethod
+    def from_policy(cls, path: str | Path, **kwargs) -> "Firewall":
+        """Build a Firewall from a policy file (v1 or policy_version 2): its tool
+        policy plus its detector modes (the kill switch). Other Firewall fields can
+        be passed as kwargs, e.g. `inbound=InboundGuard(judge=...)`, `log=...`."""
+        return cls(**kwargs).with_policy(path)
+
+    def with_policy(self, path: str | Path) -> "Firewall":
+        """A new Firewall with this policy applied; self is left unchanged. Detector
+        modes are merged into a copy of the inbound guard, which keeps its judge,
+        cache and detectors and re-validates every mode ID (unknown IDs raise
+        PolicyError here, at build time, never at request time)."""
+        policy = load_policy_v2(path)
+        inbound = self.inbound
+        if policy.detector_modes:
+            inbound = replace(inbound, modes={**(inbound.modes or {}), **policy.detector_modes})
+        return replace(self, inbound=inbound, tool_policy=policy.tool_policy)
+
     # --- inbound -----------------------------------------------------------
     def check_input(self, text: str, tenant: Optional[str] = None) -> Verdict:
-        result: ScanResult = self.inbound.scan(text)
-        blocked = self.inbound.is_blocked(result)
-        reason = _inbound_reason(result)
-        verdict = Verdict(
-            allowed=not blocked,
-            stage="inbound",
-            reason=reason,
-            matches=result.matches,
-        )
-        self.log.log(Event(
-            stage="inbound",
-            decision="block" if blocked else "allow",
-            detail=reason,
-            extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant},
-        ))
-        return verdict
+        return self._scan_stage(text, "inbound", tenant)
 
     # --- tool result (indirect / data-borne injection) --------------------
     def check_tool_result(self, text: str, tenant: Optional[str] = None) -> Verdict:
@@ -76,16 +83,37 @@ class Firewall:
         before the agent sees it. Indirect injection lives here - a poisoned
         document telling the agent to ignore the user or exfiltrate data. Same
         inbound scanner, distinct stage so it's attributable in the log."""
+        return self._scan_stage(text, "tool_result", tenant)
+
+    def _scan_stage(self, text: str, stage: str, tenant: Optional[str]) -> Verdict:
+        """Shared inbound pipeline for every text-scanning stage: scan, decide,
+        audit-log, return the Verdict. `stage` only labels the log and verdict."""
         result: ScanResult = self.inbound.scan(text)
         blocked = self.inbound.is_blocked(result)
         reason = _inbound_reason(result)
+        would_flip = self.inbound.would_flip(result)
+        extra = {"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant}
+        if result.shadow_hits:  # only then, so events without shadow activity stay unchanged
+            extra.update(
+                shadow_hits=[[det_id, severity] for det_id, severity in result.shadow_hits],
+                would_flip=would_flip,
+                input_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),  # never the raw text
+                cached=result.cached,
+            )
         self.log.log(Event(
-            stage="tool_result",
+            stage=stage,
             decision="block" if blocked else "allow",
             detail=reason,
-            extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant},
+            extra=extra,
         ))
-        return Verdict(allowed=not blocked, stage="tool_result", reason=reason, matches=result.matches)
+        return Verdict(
+            allowed=not blocked,
+            stage=stage,
+            reason=reason,
+            matches=result.matches,
+            shadow_hits=tuple(det_id for det_id, _ in result.shadow_hits),
+            would_flip=would_flip,
+        )
 
     # --- tool --------------------------------------------------------------
     def check_tool(self, tool: str, tool_input: Any = None, tenant: Optional[str] = None) -> Verdict:

@@ -53,10 +53,9 @@ pip install "agentbastion[judge]"   # + Anthropic LLM judge for subtle injection
 ## Quick start
 
 ```python
-from agentbastion import Firewall, guard, load_policy
+from agentbastion import Firewall, guard
 
-firewall = Firewall()                                  # heuristics + PII redaction
-firewall.tool_policy = load_policy("allowlist.yaml")   # gate tool calls
+firewall = Firewall.from_policy("allowlist.yaml")  # heuristics + PII redaction + tool policy + detector modes
 
 @guard(firewall)                    # inbound + outbound guards
 def my_agent(user_input: str) -> str:
@@ -102,7 +101,46 @@ deny:  [issue_refund]        # money movement stays human-approved
 rate_limits: { get_order_status: 5 }
 ```
 
-Decision order: deny → allow → default → rate limit.
+Decision order: deny-list → allow-list → default → rate limit. `default` only
+applies when there is **no** allow list: with an allow list, unlisted tools are
+denied whatever `default` says. (In `policy_version: 2`, `default: allow` together
+with an allow list is rejected as a contradiction.)
+
+### Detector modes and the kill switch (`policy_version: 2`, agentbastion ≥ 0.12)
+
+Every inbound detector has an ID (`bastion.exfil_action`, `bastion.semantic`,
+`bastion.judge`, …) and runs in one of three modes:
+
+| Mode | Runs? | Can block? | Use it to |
+|---|---|---|---|
+| `enforce` | yes | yes | the default for stable detectors |
+| `shadow` | yes | **no**: reported on `Verdict.shadow_hits` + the audit log | try a rule on real traffic first |
+| `off` | no | no | **kill switch**: silence a rule that misfires, no release needed |
+
+```yaml
+policy_version: 2              # required: without it `detectors:` is rejected, never ignored
+detectors:
+  bastion.exfil_action: off    # kill switch
+  bastion.dan_jailbreak: shadow
+```
+
+- A file with only `detectors:` installs **no** tool policy (every tool stays
+  allowed). `default:` is required only when `allow`, `deny` or `rate_limits` is set.
+- Load it with `Firewall.from_policy(path)` (or `fw.with_policy(path)`), or point the
+  gateway's `AGENTBASTION_TOOL_POLICY` at it. The legacy `load_policy()` returns the
+  tool policy only and warns that detector modes are not applied.
+- Mistakes fail when the firewall is built, never silently: a typo'd ID
+  (`bastion.exfil_acton` → *did you mean 'bastion.exfil_action'?*), an unknown key, a
+  mode other than `off | shadow | enforce`.
+- **Older versions cannot honor this.** agentbastion ≤ 0.11 ignores `detectors:` and
+  keeps enforcing; upgrade before relying on a kill switch.
+- New detectors ship in `shadow` for one minor release before they enforce.
+  `Verdict.would_flip` is `True` when an allowed input would have been blocked had
+  its shadow detectors enforced.
+- Your own signatures (`HeuristicDetector(signatures=...)`) are addressable as
+  `custom.<name>`; plugins that expose a `detector_id` attribute are addressable too.
+
+Full example: [`tests/fixtures/policy_v2_golden.yaml`](tests/fixtures/policy_v2_golden.yaml).
 
 ### Optional LLM judge
 
@@ -207,7 +245,10 @@ block counts, and recent blocks, read live from the audit log.
 
 **Fail-closed:** with no keys configured the gateway refuses every request
 (503) unless you set `AGENTBASTION_ALLOW_NO_AUTH=1` for local dev. Set
-`AGENTBASTION_TOOL_POLICY` to a policy YAML to enable `/v1/check/tool`.
+`AGENTBASTION_TOOL_POLICY` to a policy YAML to enable `/v1/check/tool`; a
+`policy_version: 2` file also applies its detector modes (kill switch / shadow), and
+an invalid policy stops the gateway at startup. Changing modes means editing the file
+and restarting the process.
 
 > ponytail note: keys are stored plaintext in the keys file (the operator's
 > secret store). Hashing them at rest is the next hardening step.
