@@ -13,7 +13,11 @@ Policy is a small YAML file:
     rate_limits:             # optional max calls per tool this session
       send_email: 3
 
-Decision order: deny-list -> allow-list -> default -> rate limit.
+Decision order: deny-list -> allow-list -> default -> rate limit. `default` only
+applies when there is no allow list; with one, unlisted tools are denied.
+
+A `policy_version: 2` file adds per-detector modes (off | shadow | enforce, the
+kill switch) and validates strictly; see load_policy_v2 and Firewall.from_policy.
 """
 
 from __future__ import annotations

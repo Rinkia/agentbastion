@@ -20,17 +20,17 @@ from pathlib import Path
 
 import anthropic
 
-from agentbastion import Firewall, guard, load_policy
+from agentbastion import Firewall, guard
 from agentbastion.tools import ToolBlocked
 
 MODEL = "claude-opus-5"
 
 client = anthropic.Anthropic()
 
-# Firewall with the LLM judge on. Drop `.with_judge(client)` -> `Firewall(...)`
-# to run heuristics-only (offline, free).
-firewall = Firewall.with_judge(client)
-firewall.tool_policy = load_policy(Path(__file__).parent / "allowlist.yaml")
+# Firewall with the LLM judge on, plus the tool policy (and any detector modes) from
+# allowlist.yaml. Use `Firewall.from_policy(path)` instead to run heuristics-only
+# (offline, free).
+firewall = Firewall.with_judge(client).with_policy(Path(__file__).parent / "allowlist.yaml")
 
 # --- fake back-end tools the agent can call --------------------------------
 def get_order_status(order_id: str) -> str:
