@@ -82,4 +82,6 @@ DETECTORS: dict[str, DetectorSpec] = {
     SEMANTIC_ID: _STABLE,
     MODEL_SCANNER_ID: _STABLE,
     JUDGE_ID: _STABLE,
+    # --- shadow detectors (experimental): reported, never block until promoted ---
+    BUILTIN_NAMESPACE + "memory_persistence": DetectorSpec("experimental", promote_in="0.13.0"),
 }

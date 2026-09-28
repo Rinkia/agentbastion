@@ -40,8 +40,12 @@ def test_whole_detectors_are_registered():
 
 
 def test_existing_detectors_keep_enforcing():
-    # Registering the 0.11 detectors must not change behavior (decision D-A2).
-    assert all(spec.default_mode == "enforce" for spec in DETECTORS.values())
+    # Registering the 0.11 detectors must not change behavior (decision D-A2). Detectors
+    # added later may ship in shadow; everything that shipped in 0.11 still enforces.
+    from agentbastion.registry import _SIGNATURES_AT_0_11
+
+    shipped_in_0_11 = {f"bastion.{name}" for name in _SIGNATURES_AT_0_11} | WHOLE_DETECTOR_IDS
+    assert all(DETECTORS[det_id].default_mode == "enforce" for det_id in shipped_in_0_11)
 
 
 # --- DetectorSpec ----------------------------------------------------------
