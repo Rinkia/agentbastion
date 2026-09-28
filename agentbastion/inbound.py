@@ -19,7 +19,7 @@ import difflib
 import hashlib
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Mapping, Optional, Protocol
 
 from . import registry
@@ -161,6 +161,7 @@ class ScanResult:
     # Hits from detectors in shadow mode: (detector ID, severity or None for the judge).
     # Reported only; they never count toward the verdict.
     shadow_hits: tuple[tuple[str, Optional[int]], ...] = ()
+    cached: bool = False  # True when this result was served from the verdict cache
 
     @property
     def clean(self) -> bool:
@@ -384,7 +385,7 @@ class InboundGuard:
             key = hashlib.sha256(text.encode("utf-8")).hexdigest()
             hit = self.cache.get(key)
             if hit is not None:
-                return hit
+                return replace(hit, cached=True)
         if hasattr(self.heuristics, "scan_detailed"):
             matches, max_sev, heuristic_shadow = self.heuristics.scan_detailed(text)
         else:  # a heuristics object implementing only the public Detector protocol
@@ -422,3 +423,14 @@ class InboundGuard:
 
     def is_blocked(self, result: ScanResult) -> bool:
         return result.max_severity >= self.block_threshold or result.judge_flagged
+
+    def would_flip(self, result: ScanResult) -> bool:
+        """True when an allowed result would have been blocked had its shadow
+        detectors enforced: a shadow hit at/above block_threshold, or a judge flag
+        recorded in shadow (severity None)."""
+        if self.is_blocked(result):
+            return False
+        return any(
+            severity is None or severity >= self.block_threshold
+            for _, severity in result.shadow_hits
+        )

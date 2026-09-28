@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, Callable, Optional
@@ -27,6 +28,8 @@ class Verdict:
     stage: str
     reason: str
     matches: tuple[str, ...] = ()
+    shadow_hits: tuple[str, ...] = ()  # IDs of shadow-mode detectors that fired (never block)
+    would_flip: bool = False  # allowed, but would have been blocked had they enforced
 
 
 class BlockedError(Exception):
@@ -69,13 +72,29 @@ class Firewall:
         result: ScanResult = self.inbound.scan(text)
         blocked = self.inbound.is_blocked(result)
         reason = _inbound_reason(result)
+        would_flip = self.inbound.would_flip(result)
+        extra = {"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant}
+        if result.shadow_hits:  # only then, so events without shadow activity stay unchanged
+            extra.update(
+                shadow_hits=[[det_id, severity] for det_id, severity in result.shadow_hits],
+                would_flip=would_flip,
+                input_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),  # never the raw text
+                cached=result.cached,
+            )
         self.log.log(Event(
             stage=stage,
             decision="block" if blocked else "allow",
             detail=reason,
-            extra={"matches": list(result.matches), "judge_flagged": result.judge_flagged, "tenant": tenant},
+            extra=extra,
         ))
-        return Verdict(allowed=not blocked, stage=stage, reason=reason, matches=result.matches)
+        return Verdict(
+            allowed=not blocked,
+            stage=stage,
+            reason=reason,
+            matches=result.matches,
+            shadow_hits=tuple(det_id for det_id, _ in result.shadow_hits),
+            would_flip=would_flip,
+        )
 
     # --- tool --------------------------------------------------------------
     def check_tool(self, tool: str, tool_input: Any = None, tenant: Optional[str] = None) -> Verdict:
