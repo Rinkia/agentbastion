@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
 from .cache import TTLCache
+from .registry import BUILTIN_NAMESPACE, CUSTOM_NAMESPACE
 
 log = logging.getLogger("agentbastion.inbound")
 
@@ -122,6 +123,28 @@ _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
     ("it_reveal_system_prompt", re.compile(r"\b(?:rivela|mostra|mostrami|stampa|ripeti|dimmi)\b.{0,40}\b(?:prompt\s+di\s+sistema|istruzioni?\s+di\s+sistema|(?:le\s+tue|le\s+sue)\s+istruzioni?)\b", re.I), 5),
     ("it_no_restrictions", re.compile(r"\b(?:ora sei|sei ora|d'ora in poi|da ora)\b.{0,45}\b(?:senza\s+(?:restrizioni?|regole|filtri?|limiti?)|nessuna\s+(?:regola|restrizione))\b", re.I), 4),
 ]
+
+_BUILTIN_SIGNATURES = {sig[0]: sig for sig in _SIGNATURES}
+
+
+def signature_id(signature: tuple) -> str:
+    """Namespaced detector ID for a (name, pattern, severity) signature.
+
+    A signature is the built-in `bastion.<name>` only if the WHOLE tuple equals the
+    shipped one (pattern, flags and severity included). A user signature that reuses
+    a built-in name with different contents is rejected rather than silently
+    inheriting the built-in's kill-switch line (decision OV4). Any other name is
+    `custom.<name>`."""
+    name = signature[0]
+    builtin = _BUILTIN_SIGNATURES.get(name)
+    if builtin is None:
+        return CUSTOM_NAMESPACE + name
+    if tuple(signature) != builtin:
+        raise ValueError(
+            f"custom signature {name!r} reuses a built-in name with a different pattern, "
+            "flags or severity; rename it so it gets its own custom.* ID"
+        )
+    return BUILTIN_NAMESPACE + name
 
 
 @dataclass(frozen=True)
