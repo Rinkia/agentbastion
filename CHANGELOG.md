@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0rc1 (2026-09-29): memory_persistence promoted to enforce
+
+Release candidate. Install with `pip install --pre agentbastion` or pin `agentbastion==0.13.0rc1`.
+
+- **BEHAVIOR:** `bastion.memory_persistence` is promoted from experimental (shadow) to
+  **stable (enforce)**: text that tells the agent to persist something into memory and
+  re-emit it in every future output is now **blocked**, not just reported. Evidence
+  from its minor in shadow: it catches 3/3 corpus `memory-poisoning` rows (the only
+  detector that does), with 0 hits on every labelled benign set (incl. the
+  `benign_memory` trap) and 0 hits on 5,242 lines of real agent memory. Kill switch:
+  `detectors: {bastion.memory_persistence: off}` (or `shadow`) in a `policy_version: 2`
+  file.
+- No detector is in shadow in this release.
+
 ## 0.12.0 (2026-09-28): detector modes, kill switch, policy v2
 
 Final release of 0.12.0rc1, with no code changes since the rc. Everything below

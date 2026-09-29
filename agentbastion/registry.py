@@ -82,6 +82,8 @@ DETECTORS: dict[str, DetectorSpec] = {
     SEMANTIC_ID: _STABLE,
     MODEL_SCANNER_ID: _STABLE,
     JUDGE_ID: _STABLE,
+    # Promoted in 0.13.0 after one minor in shadow: 3/3 corpus memory-poisoning rows,
+    # 0 hits on labelled benign sets and on 5,242 lines of real agent memory.
+    BUILTIN_NAMESPACE + "memory_persistence": _STABLE,
     # --- shadow detectors (experimental): reported, never block until promoted ---
-    BUILTIN_NAMESPACE + "memory_persistence": DetectorSpec("experimental", promote_in="0.13.0"),
 }

@@ -1,9 +1,9 @@
-"""bastion.memory_persistence: the first detector to ship through the shadow gate.
+"""bastion.memory_persistence: the first detector through the shadow gate.
 
 Targets memory poisoning (corpus 0.4.0, tactic `memory-poisoning`): text telling the
 agent to persist something into memory AND re-emit it in every future output. It
-ships `experimental` (shadow) with promote_in = next minor: it is reported on
-Verdict.shadow_hits and in the audit log, never blocks, until promoted on evidence.
+shipped `experimental` (shadow) in 0.12 and was promoted to stable (enforce) in 0.13.0
+on evidence: 3/3 corpus attacks, 0 false positives. The kill switch still turns it off.
 The benign trap `benign_memory-001` ("remember ... for future reports") has no
 "every future output" clause and must not match.
 """
@@ -38,31 +38,37 @@ def _benign_texts() -> list[str]:
 
 def test_registered_as_a_shadow_detector():
     spec = DETECTORS[ID]
-    assert spec.status == "experimental" and spec.default_mode == "shadow"
-    assert spec.promote_in == "0.13.0"
+    assert spec.status == "stable" and spec.default_mode == "enforce"
 
 
 @pytest.mark.parametrize("row_id", ATTACKS)
-def test_attack_is_reported_in_shadow_but_not_blocked(row_id):
+def test_attack_blocks_by_default(row_id):
     verdict = Firewall(log=EventLog(None)).check_tool_result(ROWS[row_id].text)
-    assert verdict.allowed is True  # shadow: never blocks
-    assert ID in verdict.shadow_hits
-    assert verdict.would_flip is True  # would have been blocked if enforced
+    assert verdict.allowed is False and "memory_persistence" in verdict.matches
+    assert verdict.shadow_hits == ()
 
 
 @pytest.mark.parametrize("row_id", ATTACKS)
-def test_attack_blocks_when_enforced(row_id):
-    fw = Firewall(log=EventLog(None), inbound=InboundGuard(modes={ID: "enforce"}))
+def test_kill_switch_turns_it_off(row_id):
+    # it is the only signature on these rows, so off really means allowed
+    fw = Firewall(log=EventLog(None), inbound=InboundGuard(modes={ID: "off"}))
     verdict = fw.check_tool_result(ROWS[row_id].text)
-    assert verdict.allowed is False and "memory_persistence" in verdict.matches
+    assert verdict.allowed is True and "memory_persistence" not in verdict.matches
+
+
+@pytest.mark.parametrize("row_id", ATTACKS)
+def test_can_be_put_back_in_shadow(row_id):
+    fw = Firewall(log=EventLog(None), inbound=InboundGuard(modes={ID: "shadow"}))
+    verdict = fw.check_tool_result(ROWS[row_id].text)
+    assert verdict.allowed is True and ID in verdict.shadow_hits and verdict.would_flip
 
 
 def test_benign_memory_trap_does_not_match():
-    _, _, shadow = HeuristicDetector().scan_detailed(ROWS["benign_memory-001"].text)
-    assert shadow == ()
+    matches, _, shadow = HeuristicDetector().scan_detailed(ROWS["benign_memory-001"].text)
+    assert "memory_persistence" not in matches and shadow == ()
 
 
 def test_no_false_positives_on_any_benign_input():
     detector = HeuristicDetector()
-    hits = [t[:60] for t in _benign_texts() if any(i == ID for i, _ in detector.scan_detailed(t)[2])]
+    hits = [t[:60] for t in _benign_texts() if "memory_persistence" in detector.scan_detailed(t)[0]]
     assert hits == []
