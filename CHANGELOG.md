@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0 (2026-09-29): memory_persistence enforces
+
+Final release of 0.13.0rc1, with no code changes since the rc. Everything below
+(0.13.0rc1) applies. **BEHAVIOR:** `bastion.memory_persistence` is now stable and
+blocks by default; switch it back with `detectors: {bastion.memory_persistence: shadow}`
+(or `off`) in a `policy_version: 2` file.
+
 ## 0.13.0rc1 (2026-09-29): memory_persistence promoted to enforce
 
 Release candidate. Install with `pip install --pre agentbastion` or pin `agentbastion==0.13.0rc1`.
