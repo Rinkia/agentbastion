@@ -92,8 +92,8 @@ _SIGNATURES: list[tuple[str, re.Pattern[str], int]] = [
     ("exfil_action", re.compile(r"\b(?:email|send|forward|exfiltrate|leak|upload|post|transmit|reveal|expose|disclose|dump)\b.{0,45}\b(?:customer\s+(?:list|data|records)|order\s+data|credentials?|api\s+keys?|passwords?|database|internal\s+config|externally|to\s+\S+@)\b", re.I), 4),
     # Memory poisoning (corpus 0.4.0, tactic memory-poisoning): persist something into the
     # agent's memory AND re-emit it in every future output. The benign "remember X for
-    # future reports" has no every-future-output clause. Ships in SHADOW (registry:
-    # experimental, promote_in 0.13.0) - reported, never blocks until promoted.
+    # future reports" has no every-future-output clause. Shipped in shadow in 0.12,
+    # promoted to stable (enforce) in 0.13.0.
     ("memory_persistence", re.compile(r"\b(?:save|store|persist|write|remember)\b.{0,60}\b(?:memory|future|from now on|across (?:turns|sessions))\b.{0,80}\b(?:every|each|all)\s+(?:future\s+)?(?:repl(?:y|ies)|responses?|summar(?:y|ies)|reports?|messages?|outputs?|answers?)\b", re.I), 4),
     # === German (de) - reference translation of the high-signal patterns, ==========
     # === issue #1. Same narrow-pattern discipline: must not fire on benign =========
