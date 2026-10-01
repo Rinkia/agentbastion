@@ -365,8 +365,15 @@ class LLMJudge:
         return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
 
 
-# Decoding is linear but not free (~0.2-2 s per MB): larger inputs are not decoded.
+# Decoding is linear but not free (~0.2-2 s per MB). Inputs above DECODE_MAX_CHARS are
+# not decoded: in enforce mode that fails closed (`decoded:oversize`), in shadow it is
+# reported. The whole-text views (rot13, leet, reversed, spaced) only run on inputs up
+# to TRANSFORM_MAX_CHARS: those tricks live in typed prompts, and rewriting a big tool
+# result five times would dominate the scan cost.
 DECODE_MAX_CHARS = 1_000_000
+TRANSFORM_MAX_CHARS = 65_536
+OVERSIZE_MATCH = "decoded:oversize"
+_OVERSIZE_SEVERITY = 4  # the default block threshold: too big to check is not "clean"
 
 
 def _decoded_hits(heuristics, text: str, already: frozenset = frozenset()) -> tuple[tuple[str, ...], int]:
@@ -376,14 +383,14 @@ def _decoded_hits(heuristics, text: str, already: frozenset = frozenset()) -> tu
     ordinary text (leet-folding a sentence with an "@") repeats the plain matches;
     those are not new and are not reported."""
     if len(text) > DECODE_MAX_CHARS:
-        return (), 0
+        return (OVERSIZE_MATCH,), _OVERSIZE_SEVERITY
     try:
         from bastioncorpus import variants
     except ImportError:  # bastioncorpus < 0.5: no decoder
         return (), 0
     hits: list[str] = []
     max_sev = 0
-    for d in variants(text, transforms=True):
+    for d in variants(text, transforms=len(text) <= TRANSFORM_MAX_CHARS):
         if hasattr(heuristics, "scan_detailed"):
             matches, _sev, _shadow = heuristics.scan_detailed(d.text)
             severities = heuristics.severities(matches) if hasattr(heuristics, "severities") else None
@@ -439,9 +446,9 @@ class InboundGuard:
         shadow = list(heuristic_shadow)
         decoded_mode = _effective_mode(registry.DECODED_ID, self._modes)
         if decoded_mode != "off":
-            seen = frozenset(matches) | frozenset(
-                det_id.removeprefix(registry.BUILTIN_NAMESPACE) for det_id, _ in heuristic_shadow)
-            decoded, decoded_sev = _decoded_hits(self.heuristics, text, seen)
+            # only ENFORCED plain matches suppress a decoded hit: a plain hit that is
+            # merely in shadow must not hide an enforced decoded one
+            decoded, decoded_sev = _decoded_hits(self.heuristics, text, frozenset(matches))
             if decoded and decoded_mode == "shadow":
                 shadow.append((registry.DECODED_ID, decoded_sev))
             elif decoded:

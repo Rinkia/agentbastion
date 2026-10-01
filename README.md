@@ -158,8 +158,15 @@ detectors:
 ```
 
 Measured with `bastionprobe encoding-bench`: 58–74% of the encoded corpus attacks would be
-blocked (0–1% without it), with 0% of benign encoded rows flagged. Inputs over 1,000,000
-characters are not decoded. Made-up ciphers can't be decoded by enumeration; allow-lists on
+blocked (0–1% without it), with 0% of benign encoded rows flagged.
+
+Cost and limits:
+- **Cost:** decoding adds about 1 ms per 4 KB input, even in shadow mode. Set
+  `bastion.decoded_payload: off` to skip it.
+- **Whole-text views:** rot13, leet, reversed and spaced letters are only applied to inputs
+  up to 64 KB, where typed jailbreaks live.
+- **Oversize inputs:** above 1,000,000 characters nothing is decoded. Enforce mode then
+  fails closed (`decoded:oversize`); shadow mode reports it. Made-up ciphers can't be decoded by enumeration; allow-lists on
 what the agent may *do* (the tool guard) remain the guarantee.
 
 Full example: [`tests/fixtures/policy_v2_golden.yaml`](tests/fixtures/policy_v2_golden.yaml).

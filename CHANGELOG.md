@@ -18,8 +18,13 @@
   - on benign encoded rows, 0% are flagged.
 - Promotion bar: benign FP at or below 1% on the bench (met) plus a dogfood run on real
   inputs.
-- Inputs over 1,000,000 characters are not decoded. Plain-text verdicts are unchanged: the
-  verdict goldens are untouched.
+- Cost: about 1 ms per 4 KB input, even in shadow (`off` skips it).
+  - Whole-text views run only on inputs up to 64 KB.
+  - Inputs over 1,000,000 characters are not decoded. In enforce mode that blocks
+    (`decoded:oversize`); in shadow it is reported.
+- Plain-text verdicts are unchanged: the verdict goldens are untouched.
+- An integration security review (2026-10-01) found that the oversize skip in enforce mode
+  and the shadow-hit suppression were wrong; both are fixed, with regression tests.
 - Requires bastioncorpus >= 0.5.0.
 
 ## 0.13.0 (2026-09-29): memory_persistence enforces
