@@ -233,6 +233,11 @@ class HeuristicDetector:
     def ids(self) -> frozenset[str]:
         return frozenset(self._ids)
 
+    def severities(self, names) -> dict[str, int]:
+        """Severity of each named signature (for decoded hits)."""
+        wanted = set(names)
+        return {name: sev for name, _pattern, sev in self._signatures if name in wanted}
+
     def with_modes(self, modes: Mapping[str, str]) -> "HeuristicDetector":
         return HeuristicDetector(self._signatures, {**self._modes, **modes})
 
@@ -360,6 +365,42 @@ class LLMJudge:
         return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
 
 
+# Decoding is linear but not free (~0.2-2 s per MB): larger inputs are not decoded.
+DECODE_MAX_CHARS = 1_000_000
+
+
+def _decoded_hits(heuristics, text: str, already: frozenset = frozenset()) -> tuple[tuple[str, ...], int]:
+    """Enforced heuristic signatures that match a DECODED view of `text` but not the
+    text itself (`already`): what decoding revealed. Returned as
+    `decoded:<encoding>:<signature>` ids with their max severity. A whole-text view of
+    ordinary text (leet-folding a sentence with an "@") repeats the plain matches;
+    those are not new and are not reported."""
+    if len(text) > DECODE_MAX_CHARS:
+        return (), 0
+    try:
+        from bastioncorpus import variants
+    except ImportError:  # bastioncorpus < 0.5: no decoder
+        return (), 0
+    hits: list[str] = []
+    max_sev = 0
+    for d in variants(text, transforms=True):
+        if hasattr(heuristics, "scan_detailed"):
+            matches, _sev, _shadow = heuristics.scan_detailed(d.text)
+            severities = heuristics.severities(matches) if hasattr(heuristics, "severities") else None
+        else:
+            matches, _sev = heuristics.scan(d.text)
+            severities = None
+        new = [m for m in matches if m not in already]
+        if not new:
+            continue
+        for name in new:
+            label = f"decoded:{d.encoding}:{name}"
+            if label not in hits:
+                hits.append(label)
+        max_sev = max([max_sev] + [severities[m] for m in new] if severities else [max_sev, _sev])
+    return tuple(hits), max_sev
+
+
 @dataclass
 class InboundGuard:
     heuristics: HeuristicDetector = field(default_factory=HeuristicDetector)
@@ -396,6 +437,16 @@ class InboundGuard:
         else:  # a heuristics object implementing only the public Detector protocol
             (matches, max_sev), heuristic_shadow = self.heuristics.scan(text), ()
         shadow = list(heuristic_shadow)
+        decoded_mode = _effective_mode(registry.DECODED_ID, self._modes)
+        if decoded_mode != "off":
+            seen = frozenset(matches) | frozenset(
+                det_id.removeprefix(registry.BUILTIN_NAMESPACE) for det_id, _ in heuristic_shadow)
+            decoded, decoded_sev = _decoded_hits(self.heuristics, text, seen)
+            if decoded and decoded_mode == "shadow":
+                shadow.append((registry.DECODED_ID, decoded_sev))
+            elif decoded:
+                matches = matches + tuple(x for x in decoded if x not in matches)
+                max_sev = max(max_sev, decoded_sev)
         for det in self.detectors:  # additional detectors merge into the result
             det_id = getattr(det, "detector_id", None)
             mode = _effective_mode(det_id, self._modes) if det_id else "enforce"

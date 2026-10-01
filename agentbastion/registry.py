@@ -76,6 +76,9 @@ _SIGNATURES_AT_0_11 = (
 SEMANTIC_ID = "bastion.semantic"
 MODEL_SCANNER_ID = "bastion.model_scanner"
 JUDGE_ID = "bastion.judge"
+# Decode and rescan: the heuristic signatures run again on every decoded view of the
+# text (base64, hex, binary, rot13, leet, ... via bastioncorpus.variants).
+DECODED_ID = "bastion.decoded_payload"
 
 DETECTORS: dict[str, DetectorSpec] = {
     **{BUILTIN_NAMESPACE + name: _STABLE for name in _SIGNATURES_AT_0_11},
@@ -86,4 +89,6 @@ DETECTORS: dict[str, DetectorSpec] = {
     # 0 hits on labelled benign sets and on 5,242 lines of real agent memory.
     BUILTIN_NAMESPACE + "memory_persistence": _STABLE,
     # --- shadow detectors (experimental): reported, never block until promoted ---
+    # Promotion bar: bastionprobe encoding-bench benign FP <= 1% plus dogfood on real inputs.
+    DECODED_ID: DetectorSpec("experimental", promote_in="0.15.0"),
 }

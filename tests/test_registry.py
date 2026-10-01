@@ -12,6 +12,7 @@ import pytest
 
 from agentbastion.inbound import _SIGNATURES, signature_id
 from agentbastion.registry import (
+    DECODED_ID,
     DETECTORS,
     JUDGE_ID,
     MODEL_SCANNER_ID,
@@ -19,7 +20,7 @@ from agentbastion.registry import (
     DetectorSpec,
 )
 
-WHOLE_DETECTOR_IDS = {SEMANTIC_ID, MODEL_SCANNER_ID, JUDGE_ID}
+WHOLE_DETECTOR_IDS = {SEMANTIC_ID, MODEL_SCANNER_ID, JUDGE_ID, DECODED_ID}
 
 
 # --- coverage --------------------------------------------------------------
@@ -44,7 +45,7 @@ def test_existing_detectors_keep_enforcing():
     # added later may ship in shadow; everything that shipped in 0.11 still enforces.
     from agentbastion.registry import _SIGNATURES_AT_0_11
 
-    shipped_in_0_11 = {f"bastion.{name}" for name in _SIGNATURES_AT_0_11} | WHOLE_DETECTOR_IDS
+    shipped_in_0_11 = {f"bastion.{name}" for name in _SIGNATURES_AT_0_11} | {SEMANTIC_ID, MODEL_SCANNER_ID, JUDGE_ID}
     assert all(DETECTORS[det_id].default_mode == "enforce" for det_id in shipped_in_0_11)
 
 

@@ -140,6 +140,28 @@ detectors:
 - Your own signatures (`HeuristicDetector(signatures=...)`) are addressable as
   `custom.<name>`; plugins that expose a `detector_id` attribute are addressable too.
 
+### Encoded attacks: `bastion.decoded_payload` (shadow in 0.14)
+
+A request typed in binary, base64, hex, rot13, leetspeak, reversed or spaced-out letters
+reads as noise to a regex but plainly to the model. This detector decodes the text with
+`bastioncorpus.variants` and runs the signatures again on every decoded view. It reports only
+what decoding revealed, never a duplicate of a plain match. Matches look like
+`decoded:binary:ignore_previous`.
+
+In 0.14 it runs in **shadow**: hits appear in `Verdict.shadow_hits` and set
+`would_flip`, but never block. Enforce it with:
+
+```yaml
+policy_version: 2
+detectors:
+  bastion.decoded_payload: enforce
+```
+
+Measured with `bastionprobe encoding-bench`: 58–74% of the encoded corpus attacks would be
+blocked (0–1% without it), with 0% of benign encoded rows flagged. Inputs over 1,000,000
+characters are not decoded. Made-up ciphers can't be decoded by enumeration; allow-lists on
+what the agent may *do* (the tool guard) remain the guarantee.
+
 Full example: [`tests/fixtures/policy_v2_golden.yaml`](tests/fixtures/policy_v2_golden.yaml).
 
 ### Optional LLM judge
