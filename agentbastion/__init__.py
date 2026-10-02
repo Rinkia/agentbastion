@@ -12,7 +12,7 @@ from .firewall import Firewall, guard, Verdict, BlockedError
 from .tools import PolicyError, PolicyV2, ToolPolicy, ToolBlocked, load_policy, load_policy_v2
 from .events import Event, EventLog, dashboard
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 
 __all__ = [
     "Firewall",
