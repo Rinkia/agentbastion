@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.14.0 (2026-10-05): encoded attacks (shadow)
+
+- **New detector `bastion.decoded_payload`** (experimental, so **shadow** by default;
+  promote in 0.15.0). It decodes the input or tool result with `bastioncorpus.variants`:
+  - encodings: base64, base32, hex, binary, ascii85/base85, Morse, percent and `\u` escapes,
+    tag characters;
+  - whole-text views: rot13, leet, reversed, spaced letters.
+
+  The heuristic signatures then run on every decoded view. Only hits the plain text did not
+  already produce are reported, as `decoded:<encoding>:<signature>`. Shadow hits set
+  `would_flip`. Enforce with `detectors: {bastion.decoded_payload: enforce}` in a
+  `policy_version: 2` file.
+- Evidence (`bastionprobe encoding-bench`, 2026-10-01):
+  - on encoded corpus attacks, 58–74% would be blocked when enforced; 0–1% are caught
+    without the detector;
+  - on benign encoded rows, 0% are flagged.
+- Promotion bar: benign FP at or below 1% on the bench (met) plus a dogfood run on real
+  inputs.
+- Cost: about 1 ms per 4 KB input, even in shadow (`off` skips it).
+  - Whole-text views run only on inputs up to 64 KB.
+  - Inputs over 1,000,000 characters are not decoded. In enforce mode that blocks
+    (`decoded:oversize`); in shadow it is reported.
+- Plain-text verdicts are unchanged: the verdict goldens are untouched.
+- An integration security review (2026-10-01) found that the oversize skip in enforce mode
+  and the shadow-hit suppression were wrong; both are fixed, with regression tests.
+- Requires bastioncorpus >= 0.5.0.
+
 ## 0.13.0 (2026-09-29): memory_persistence enforces
 
 Final release of 0.13.0rc1, with no code changes since the rc. Everything below

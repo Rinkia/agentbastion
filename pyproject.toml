@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentbastion"
-version = "0.13.0"
+version = "0.14.0"
 description = "A firewall for AI agents: block prompt injection, guard tool calls, redact PII/secrets."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "pyyaml>=6.0",
-    "bastioncorpus>=0.4.0",
+    "bastioncorpus>=0.5.0",
 ]
 
 [project.urls]
