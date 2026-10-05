@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.14.0 (unreleased): encoded attacks (shadow)
+## 0.14.0 (2026-10-05): encoded attacks (shadow)
 
 - **New detector `bastion.decoded_payload`** (experimental, so **shadow** by default;
   promote in 0.15.0). It decodes the input or tool result with `bastioncorpus.variants`:
